@@ -1,0 +1,234 @@
+version: 1
+integration: haeo
+current_tier: silver
+target_tier: platinum
+
+bronze:
+  config-flow:
+    status: done
+    comment: Config flow provided by custom_components/haeo/flows/hub.py with manifest.json exposing config_flow true
+
+  config-flow-test-coverage:
+    status: done
+    comment: Automated coverage in tests/flows/ exercises hub, network, element, and options flows
+
+  runtime-data:
+    status: done
+    comment: async_setup_entry assigns HaeoDataUpdateCoordinator to ConfigEntry.runtime_data in custom_components/haeo/__init__.py
+
+  entity-unique-id:
+    status: done
+    comment: HaeoSensor unique IDs combine entry id, subentry id, and output name inside custom_components/haeo/sensors/__init__.py
+
+  has-entity-name:
+    status: done
+    comment: HaeoSensor sets _attr_has_entity_name to True in custom_components/haeo/sensors/sensor.py
+
+  test-before-configure:
+    status: exempt
+    comment: Config flow gathers only local optimisation parameters and does not need connectivity validation
+
+  test-before-setup:
+    status: done
+    comment: async_setup_entry performs first refresh through HaeoDataUpdateCoordinator before forwarding platforms
+
+  unique-config-entry:
+    status: done
+    comment: HubConfigFlow assigns a normalised unique_id per network and aborts duplicates
+
+  docs-high-level-description:
+    status: done
+    comment: README.md and docs/index.md describe the optimisation features and scope
+
+  docs-installation-instructions:
+    status: done
+    comment: docs/user-guide/installation.md provides HACS and manual installation steps
+
+  docs-removal-instructions:
+    status: done
+    comment: docs/user-guide/removal.md covers UI removal, file cleanup, and post-removal checks
+
+  entity-event-setup:
+    status: done
+    comment: Event listeners register in HaeoDataUpdateCoordinator and unsubscribe via cleanup before unload
+
+  brands:
+    status: external
+    comment: Branding assets must be contributed to the home-assistant/brands repository outside this project
+
+  common-modules:
+    status: done
+    comment: Integration split across const.py, coordinator.py, flows/, data/, and sensors/ following Home Assistant layout
+
+  dependency-transparency:
+    status: done
+    comment: manifest.json lists pulp, highspy, and numpy as installation requirements
+
+  appropriate-polling:
+    status: done
+    comment: HaeoDataUpdateCoordinator combines event driven refresh with a configurable minute-level interval
+
+  action-setup:
+    status: not-applicable
+    comment: Integration exposes no Home Assistant services
+
+silver:
+  integration-owner:
+    status: done
+    comment: manifest.json defines @TrentHouliston as the code owner
+
+  test-coverage:
+    status: done
+    comment: uv run pytest --cov reports 1873 statements with 41 missed (98.0 percent)
+
+  entity-unavailable:
+    status: done
+    comment: HaeoSensor.available checks CoordinatorEntity availability and coordinator.last_update_success
+
+  log-when-unavailable:
+    status: done
+    comment: DataUpdateCoordinator raises UpdateFailed from custom_components/haeo/data/__init__.py when inputs missing and Home Assistant logs availability transitions once
+
+  action-exceptions:
+    status: not-applicable
+    comment: Integration registers no service handlers
+
+  config-entry-unloading:
+    status: done
+    comment: custom_components/haeo/__init__.py implements async_unload_entry, clears runtime_data, and unloads platforms
+
+  reauthentication-flow:
+    status: exempt
+    comment: Integration performs only local optimisation and has no external credentials to refresh
+
+  docs-configuration-parameters:
+    status: done
+    comment: docs/reference/configuration-schema.md documents every hub and element field
+
+  docs-installation-parameters:
+    status: done
+    comment: docs/user-guide/installation.md lists prerequisites and configuration inputs needed during setup
+
+  parallel-updates:
+    status: done
+    comment: custom_components/haeo/sensor.py sets PARALLEL_UPDATES to 0 for coordinator managed sensors
+
+gold:
+  devices:
+    status: done
+    comment: Sensors create device registry entries through async_get_or_create in custom_components/haeo/sensors/__init__.py
+
+  diagnostics:
+    status: done
+    comment: custom_components/haeo/diagnostics.py exposes async_get_config_entry_diagnostics with redaction and topology data
+
+  discovery:
+    status: exempt
+    comment: Integration models virtual energy networks and has nothing to auto-discover
+
+  discovery-update-info:
+    status: exempt
+    comment: Discovery support is exempt, so no discovery-based updates are required
+
+  reconfiguration-flow:
+    status: done
+    comment: HubOptionsFlow and element subentry flows provide async_step_reconfigure paths for runtime edits
+
+  dynamic-devices:
+    status: done
+    comment: Subentry addition triggers the config entry update listener which reloads sensors for new elements
+
+  stale-devices:
+    status: done
+    comment: async_remove_config_entry_device in custom_components/haeo/__init__.py authorises removal of orphaned element devices
+
+  entity-category:
+    status: done
+    comment: Coordinator assigns EntityCategory.DIAGNOSTIC metadata for duration outputs in custom_components/haeo/coordinator.py
+
+  entity-device-class:
+    status: done
+    comment: Coordinator attaches SensorDeviceClass values to outputs in custom_components/haeo/coordinator.py
+
+  entity-disabled-by-default:
+    status: todo
+    comment: All optimisation sensors remain enabled by design so optimisation status and duration remain visible without extra steps
+
+  entity-translations:
+    status: done
+    comment: translation_key equals each output name and translations/en.json defines the sensor titles
+
+  exception-translations:
+    status: done
+    comment: translations/en.json now defines exceptions.missing_sensors consumed by UpdateFailed in custom_components/haeo/data/__init__.py
+
+  icon-translations:
+    status: exempt
+    comment: Sensors use Home Assistant default icons and do not vary iconography by state
+
+  repair-issues:
+    status: done
+    comment: custom_components/haeo/repairs.py raises actionable issues with translation keys for disconnected networks, missing sensors, invalid configs, and optimisation failures
+
+  docs-examples:
+    status: done
+    comment: docs/user-guide/automations.md documents automation patterns with applied YAML
+
+  docs-use-cases:
+    status: done
+    comment: README.md describes practical optimisation scenarios such as solar plus battery control
+
+  docs-supported-devices:
+    status: exempt
+    comment: Integration consumes arbitrary Home Assistant sensors so no fixed hardware list applies
+
+  docs-supported-functions:
+    status: done
+    comment: docs/reference/sensors.md details every sensor output and attribute published by the integration
+
+  docs-known-limitations:
+    status: done
+    comment: docs/reference/limitations.md captures solver assumptions, data expectations, and control scope boundaries
+
+  docs-troubleshooting:
+    status: done
+    comment: docs/user-guide/troubleshooting.md covers common configuration, network, and performance issues
+
+  docs-data-update:
+    status: done
+    comment: docs/user-guide/data-updates.md explains polling cadence, event triggers, and manual refresh options
+
+platinum:
+  strict-typing:
+    status: done
+    comment: pyproject.toml enables mypy strict mode and uv run mypy custom_components/haeo --strict completes without errors
+
+  async-dependency:
+    status: done
+    comment: HaeoDataUpdateCoordinator offloads network.optimize via hass.async_add_executor_job and performs no blocking I/O in async paths
+
+  inject-websession:
+    status: exempt
+    comment: Optimisation relies solely on Home Assistant state data and does not create HTTP clients
+
+summary:
+  total_rules: 51
+  done: 37
+  exempt: 7
+  not_applicable: 2
+  external: 1
+  todo: 4
+  completion_percentage: 73
+
+blockers:
+  bronze:
+    - Branding assets remain external because the project has not submitted icons to home-assistant/brands
+  gold:
+  - Diagnostic sensors stay enabled by default to keep optimisation visibility without manual enabling
+  platinum:
+    - Gold tier blockers must be resolved before Platinum status applies
+
+notes: |
+  HAEO operates entirely on local Home Assistant state, so discovery and web session requirements are exempt.
+  Bronze and Silver rules are satisfied apart from the external brands submission.
+  Gold tier currently depends on adding sensor metadata and translation coverage for coordinator errors.

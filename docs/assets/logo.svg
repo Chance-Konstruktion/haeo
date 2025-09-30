@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 128" width="512" height="128"
+     style="--haeo-bg:#fff;--haeo-fg:#0b57ff;--haeo-accent:#ffd400;">
+  <title>HAEO</title>
+  <style>
+    :root{--bg:var(--haeo-bg);--fg:var(--haeo-fg);--accent:var(--haeo-accent);}
+    @media (prefers-color-scheme: dark){
+      :root{--bg:#0a0f1a;--fg:#7fb1ff;--accent:#ffd86b;}
+    }
+    svg{background:var(--bg);}
+  </style>
+
+  <!-- House -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="6">
+
+    <!-- Solar Panel -->
+    <polyline stroke="var(--accent)" fill="none" points="16,32 48,8"/>
+
+    <!-- Battery -->
+    <rect x="15" y="100" width="98" height="13" stroke="var(--accent)" fill="var(--accent)" stroke-width="5" rx="4" ry="4"/>
+    <rect x="15" y="80" width="98" height="13" stroke="var(--accent)" fill="var(--accent)" stroke-width="5" rx="4" ry="4"/>
+    <rect x="15" y="60" width="98" height="13" stroke="var(--accent)" fill="var(--accent)" stroke-width="5" rx="4" ry="4"/>
+
+
+    <!-- Roof and Walls -->
+    <polyline stroke="var(--fg)" fill="none" points="64,3 3,48 3,125 125,125 125,48 64,3"/>
+
+    <!-- Energy hub -->
+    <circle cx="64" cy="72" r="38" fill="var(--bg)" stroke="var(--bg)" stroke-width="4"/>
+    <circle cx="64" cy="72" r="32" fill="var(--bg)" stroke="var(--accent)" stroke-width="4"/>
+    <polyline stroke="var(--accent)" stroke-width="4" fill="none" points=" 40,75 51,75 55,67 60,84 70,58 78,75 88,75"/>
+  </g>
+
+  <text x="138" y="111" font-family="Arial, sans-serif" text-anchor="start" dominant-baseline="text-top" font-size="128" fill="var(--fg)">HAEO</text>
+
+</svg>

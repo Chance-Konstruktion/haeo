@@ -1,0 +1,73 @@
+# Connection Modeling
+
+Connections model power flow paths between elements with optional limits.
+
+## Model Formulation
+
+### Decision Variables
+
+For each time step $t$:
+
+- $P_c(t)$: Power flow on connection (kW)
+
+### Parameters
+
+- $P_{\min}$: Minimum power (kW) - from `min_power` config (can be negative for bidirectional)
+- $P_{\max}$: Maximum power (kW) - from `max_power` config
+- Source entity: Where power flows from
+- Target entity: Where power flows to
+
+### Constraints
+
+#### Power Limits
+
+$$
+P_{\min} \leq P_c(t) \leq P_{\max} \quad \forall t
+$$
+
+#### Direction Convention
+
+- **Positive flow**: Source → Target (forward direction)
+- **Negative flow**: Target → Source (reverse direction, if $P_{\min} < 0$)
+
+#### Power Balance Integration
+
+Connection power participates in node balance:
+
+- **At source node**: Connection is outflow
+- **At target node**: Connection is inflow
+
+## Physical Interpretation
+
+**Unidirectional** ($P_{\min} = 0$):
+
+- Solar → Node (generation only)
+- Node → Load (consumption only)
+
+**Bidirectional** ($P_{\min} < 0$):
+
+- Grid ↔ Node (import/export)
+- Battery ↔ Node (charge/discharge)
+- Inverter between AC/DC nets
+
+**Power limits**:
+
+- Wire capacity
+- Inverter rating
+- Circuit breaker limits
+
+## Configuration Impact
+
+| Parameter                    | Impact                                     |
+| ---------------------------- | ------------------------------------------ |
+| $P_{\max}$ only              | Unidirectional with limit                  |
+| $P_{\min} < 0, P_{\max} > 0$ | Bidirectional (for example, inverter link) |
+| No limits                    | Unlimited (for example, direct grid tie)   |
+
+**Inverter modeling**: Connection with ±max_power between DC and AC nodes.
+
+## Related Documentation
+
+- [Connections Guide](../user-guide/elements/connections.md)
+- [Node Modeling](node.md)
+- [Modeling Overview](index.md)
