@@ -22,18 +22,17 @@ Used to create sensor entity IDs and identify the load in connections.
 Specify one or more Home Assistant sensor entities providing power consumption data.
 The Load element is flexible and works with both constant and time-varying patterns.
 
-**Examples**:
+**Single forecast example**:
 
-```yaml
-# Single forecast
-Forecast: sensor.house_load_forecast
+| Field        | Value                      |
+| ------------ | -------------------------- |
+| **Forecast** | sensor.house_load_forecast |
 
-# Multiple load components
-Forecast:
-  - sensor.base_load
-  - sensor.ev_charger_schedule
-  - sensor.hvac_forecast
-```
+**Multiple load components example**:
+
+| Field        | Value                                                              |
+| ------------ | ------------------------------------------------------------------ |
+| **Forecast** | sensor.base_load, sensor.ev_charger_schedule, sensor.hvac_forecast |
 
 Provide all load forecasts to get accurate total consumption predictions.
 See the [Forecasts and Sensors guide](../forecasts-and-sensors.md) for details on how HAEO processes sensor data.
@@ -54,11 +53,10 @@ For fixed baseline consumption that doesn't vary over time, use an [input_number
 
 2. **Configure Load Element**:
 
-    ```yaml
-    Name: Base Load
-    Type: Load
-    Forecast: input_number.base_load_power
-    ```
+    | Field        | Value                        |
+    | ------------ | ---------------------------- |
+    | **Name**     | Base Load                    |
+    | **Forecast** | input_number.base_load_power |
 
 This configuration represents constant consumption (e.g., 1 kW = 24 kWh per day).
 
@@ -88,11 +86,10 @@ For variable consumption that changes over time, use sensors that provide foreca
 
 ### Single Variable Load
 
-```yaml
-Name: House Load
-Type: Load
-Forecast: sensor.house_load_forecast
-```
+| Field        | Value                      |
+| ------------ | -------------------------- |
+| **Name**     | House Load                 |
+| **Forecast** | sensor.house_load_forecast |
 
 The forecast sensor should provide:
 
@@ -124,19 +121,19 @@ The forecast sensor should provide:
 
 For most accurate optimization, combine a constant baseline with variable consumption:
 
-```yaml
-# Configuration 1: Constant baseline
-Name: Base Load
-Type: Load
-Forecast: input_number.base_load_power  # Set to 1.0 kW
-```
+**Configuration 1: Constant baseline**
 
-```yaml
-# Configuration 2: Variable consumption on top
-Name: Variable Load
-Type: Load
-Forecast: sensor.variable_consumption
-```
+| Field        | Value                        |
+| ------------ | ---------------------------- |
+| **Name**     | Base Load                    |
+| **Forecast** | input_number.base_load_power |
+
+**Configuration 2: Variable consumption on top**
+
+| Field        | Value                       |
+| ------------ | --------------------------- |
+| **Name**     | Variable Load               |
+| **Forecast** | sensor.variable_consumption |
 
 Total consumption = 1.0 kW (constant) + variable forecast.
 
@@ -151,15 +148,10 @@ This approach:
 
 Combine multiple load sources in a single element:
 
-```yaml
-Name: Total House Load
-Type: Load
-Forecast:
-  - input_number.base_load        # 1.0 kW constant
-  - sensor.ev_charger_schedule    # Variable
-  - sensor.pool_pump_schedule     # Variable
-  - sensor.hvac_forecast          # Variable
-```
+| Field        | Value                                                                                               |
+| ------------ | --------------------------------------------------------------------------------------------------- |
+| **Name**     | Total House Load                                                                                    |
+| **Forecast** | input_number.base_load, sensor.ev_charger_schedule, sensor.pool_pump_schedule, sensor.hvac_forecast |
 
 HAEO automatically sums all sensors at each timestamp, allowing you to model complex load profiles from simple components.
 
@@ -203,15 +195,48 @@ Combine multiple consumption sources:
 
 ## Sensors Created
 
-These sensors provide real-time visibility into load power consumption.
+These sensors provide visibility into load power consumption and the marginal cost of serving the load.
 
-| Sensor                         | Unit | Description                                                                  |
-| ------------------------------ | ---- | ---------------------------------------------------------------------------- |
-| `sensor.{name}_power_consumed` | kW   | Optimal power consumed by load (matches forecast - load is not controllable) |
+| Sensor                                            | Unit  | Description                        |
+| ------------------------------------------------- | ----- | ---------------------------------- |
+| [`sensor.{name}_power_consumed`](#power-consumed) | kW    | Power consumed by load             |
+| [`sensor.{name}_power_balance`](#power-balance)   | \$/kW | Marginal cost of serving this load |
 
-The sensor includes a `forecast` attribute containing future load values for upcoming periods.
-For constant loads, the sensor shows the same value for all periods.
-For variable loads, the sensor reflects the forecast values for each period.
+### Power Consumed
+
+The optimal power consumed by this load at each time period.
+
+Since loads are not controllable in HAEO, this value matches the forecast or constant value provided in the configuration.
+The optimization determines how to supply this power (from grid, battery, or solar), but the load consumption itself is fixed.
+
+**For constant loads**: The sensor shows the same value for all periods (the configured constant power).
+
+**For variable loads**: The sensor reflects the forecast values for each period from the configured sensor(s).
+
+**Example**: A value of 2.5 kW means this load requires 2.5 kW at this time period, which the optimization must supply from available sources.
+
+### Power Balance
+
+The marginal cost of supplying power to this load at each time period.
+See the [Shadow Prices modeling guide](../../modeling/shadow-prices.md) for general shadow price concepts.
+
+This shadow price represents the cost of the most expensive power source needed to satisfy this load.
+It reflects what it costs the system to deliver 1 kW to this load location.
+
+**Interpretation**:
+
+- **Positive value**: Represents the cost of serving this load (typically grid import price when importing)
+- **Higher values**: Indicate serving the load is expensive (peak grid prices, battery constraints, etc.)
+- **Lower values**: Indicate serving the load is cheap (off-peak prices, excess solar, etc.)
+- **Magnitude**: Shows the economic pressure at this load point in the network
+
+**Example**: A value of 0.28 means it costs \$0.28 per kW to serve this load at this time period, reflecting the marginal cost of the power source.
+
+---
+
+All sensors include a `forecast` attribute containing future optimized values for upcoming periods.
+For constant loads, the forecast shows the same value for all periods.
+For variable loads, the forecast reflects the configured sensor forecast values.
 
 ## Troubleshooting
 

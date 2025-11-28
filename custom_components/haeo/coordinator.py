@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 import logging
 import time
-from typing import Any, get_type_hints
+from typing import Any, Literal, get_type_hints
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
@@ -40,7 +40,10 @@ from .model import (
     OUTPUT_TYPE_DURATION,
     OUTPUT_TYPE_ENERGY,
     OUTPUT_TYPE_POWER,
+    OUTPUT_TYPE_POWER_FLOW,
+    OUTPUT_TYPE_POWER_LIMIT,
     OUTPUT_TYPE_PRICE,
+    OUTPUT_TYPE_SHADOW_PRICE,
     OUTPUT_TYPE_SOC,
     OUTPUT_TYPE_STATUS,
     Network,
@@ -62,14 +65,14 @@ def _collect_entity_ids(value: Any) -> set[str]:
 
     if isinstance(value, Mapping):
         mapping_ids: set[str] = set()
-        for nested in value.values():
-            mapping_ids.update(_collect_entity_ids(nested))
+        for nested_value in value.values():
+            mapping_ids.update(_collect_entity_ids(nested_value))
         return mapping_ids
 
-    if isinstance(value, Sequence):
+    if isinstance(value, Sequence) and not isinstance(value, str):
         sequence_ids: set[str] = set()
-        for nested in value:
-            sequence_ids.update(_collect_entity_ids(nested))
+        for nested_value in value:
+            sequence_ids.update(_collect_entity_ids(nested_value))
         return sequence_ids
 
     return set()
@@ -116,24 +119,31 @@ class CoordinatorOutput:
     unit: str | None
     state: StateType | None
     forecast: dict[datetime, Any] | None
+    direction: Literal["+", "-"] | None = None
     entity_category: EntityCategory | None = None
     device_class: SensorDeviceClass | None = None
     state_class: SensorStateClass | None = None
     options: tuple[str, ...] | None = None
+    advanced: bool = False
 
 
 DEVICE_CLASS_MAP: dict[OutputType, SensorDeviceClass] = {
     OUTPUT_TYPE_POWER: SensorDeviceClass.POWER,
+    OUTPUT_TYPE_POWER_FLOW: SensorDeviceClass.POWER,
+    OUTPUT_TYPE_POWER_LIMIT: SensorDeviceClass.POWER,
     OUTPUT_TYPE_ENERGY: SensorDeviceClass.ENERGY,
     OUTPUT_TYPE_SOC: SensorDeviceClass.BATTERY,
     OUTPUT_TYPE_COST: SensorDeviceClass.MONETARY,
     OUTPUT_TYPE_PRICE: SensorDeviceClass.MONETARY,
+    OUTPUT_TYPE_SHADOW_PRICE: SensorDeviceClass.MONETARY,
     OUTPUT_TYPE_DURATION: SensorDeviceClass.DURATION,
     OUTPUT_TYPE_STATUS: SensorDeviceClass.ENUM,
 }
 
 STATE_CLASS_MAP: dict[OutputType, SensorStateClass | None] = {
     OUTPUT_TYPE_POWER: SensorStateClass.MEASUREMENT,
+    OUTPUT_TYPE_POWER_FLOW: SensorStateClass.MEASUREMENT,
+    OUTPUT_TYPE_POWER_LIMIT: SensorStateClass.MEASUREMENT,
     OUTPUT_TYPE_SOC: SensorStateClass.MEASUREMENT,
     OUTPUT_TYPE_DURATION: SensorStateClass.MEASUREMENT,
 }
@@ -199,10 +209,12 @@ def _build_coordinator_output(
         unit=output_data.unit,
         state=state,
         forecast=forecast,
+        direction=output_data.direction,
         entity_category=(EntityCategory.DIAGNOSTIC if output_name == OUTPUT_NAME_OPTIMIZATION_DURATION else None),
         device_class=DEVICE_CLASS_MAP.get(output_data.type),
         state_class=STATE_CLASS_MAP.get(output_data.type),
         options=(STATUS_OPTIONS if output_data.type == OUTPUT_TYPE_STATUS else None),
+        advanced=output_data.advanced,
     )
 
 
