@@ -33,17 +33,15 @@ def lp_sequence(name: str, length: int) -> Sequence[LpVariable]:
 
 
 # Import modules after defining utilities to avoid circular imports
-from . import battery, connection, grid, load, node, photovoltaics  # noqa: E402
+from . import battery, connection, node, source_sink  # noqa: E402
 
 
 def _aggregate_element_cases() -> list[ElementTestCase]:
     """Aggregate valid element test cases."""
     return [
         *battery.VALID_CASES,
-        *load.VALID_CASES,
-        *grid.VALID_CASES,
+        *source_sink.VALID_CASES,
         *node.VALID_CASES,
-        *photovoltaics.VALID_CASES,
     ]
 
 
@@ -58,10 +56,8 @@ def _aggregate_invalid_element_cases() -> list[ElementTestCase]:
     """Aggregate invalid element test cases."""
     return [
         *battery.INVALID_CASES,
-        *load.INVALID_CASES,
-        *grid.INVALID_CASES,
+        *source_sink.INVALID_CASES,
         *node.INVALID_CASES,
-        *photovoltaics.INVALID_CASES,
     ]
 
 
@@ -86,9 +82,7 @@ __all__ = [
     "battery",
     "connection",
     "fix_lp_variable",
-    "grid",
-    "load",
     "lp_sequence",
     "node",
-    "photovoltaics",
+    "source_sink",
 ]
