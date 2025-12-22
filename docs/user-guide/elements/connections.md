@@ -35,6 +35,18 @@ Connections define how power flows between elements in your network with support
 
 Use [input number helpers](https://www.home-assistant.io/integrations/input_number/) to configure constant values.
 
+### Connection Endpoint Selection
+
+The **Source** and **Target** fields show a dropdown of available elements that can be used as connection endpoints.
+The list of available elements is filtered based on connectivity level and your hub's Advanced Mode setting.
+
+Some elements always appear in the selector regardless of Advanced Mode.
+Other elements only appear when Advanced Mode is enabled.
+Connection elements never appear as endpoints to prevent invalid connection topologies.
+
+This filtering ensures that connection endpoints are appropriate for your configuration level.
+Each element's documentation describes its connectivity level and when it appears in connection selectors.
+
 ## Configuration Example
 
 Bidirectional connection between grid and battery:
