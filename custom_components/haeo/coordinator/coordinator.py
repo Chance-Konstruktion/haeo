@@ -442,11 +442,11 @@ class HaeoDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
             raise ValueError(msg)
 
         # Get input field definitions for this element type
-        input_field_infos = get_input_fields(element_type)
+        input_field_infos = get_input_fields(element_config)
 
         # Collect loaded values from input entities
         loaded_values: dict[str, Any] = {}
-        for field_info in input_field_infos:
+        for field_info in input_field_infos.values():
             field_name = field_info.field_name
             key = (element_name, field_name)
 
