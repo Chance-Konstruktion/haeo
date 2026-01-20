@@ -13,16 +13,18 @@ from numpy.typing import NDArray
 from custom_components.haeo.const import ConnectivityLevel
 from custom_components.haeo.data.loader import TimeSeriesLoader
 from custom_components.haeo.elements.input_fields import InputFieldDefaults, InputFieldInfo
-from custom_components.haeo.model import ModelElementConfig, ModelOutputName
+from custom_components.haeo.elements.output_utils import expect_output_data
+from custom_components.haeo.model import ModelElementConfig, ModelOutputName, ModelOutputValue
 from custom_components.haeo.model.const import OutputType
 from custom_components.haeo.model.elements import MODEL_ELEMENT_TYPE_CONNECTION, MODEL_ELEMENT_TYPE_NODE
-from custom_components.haeo.model.elements.power_connection import (
+from custom_components.haeo.model.elements.connection import (
     CONNECTION_POWER_SOURCE_TARGET,
     CONNECTION_POWER_TARGET_SOURCE,
-    CONNECTION_SHADOW_POWER_MAX_SOURCE_TARGET,
-    CONNECTION_SHADOW_POWER_MAX_TARGET_SOURCE,
+    CONNECTION_SEGMENTS,
 )
+from custom_components.haeo.model.elements.segments import POWER_LIMIT_SOURCE_TARGET, POWER_LIMIT_TARGET_SOURCE
 from custom_components.haeo.model.output_data import OutputData
+from custom_components.haeo.model.util import broadcast_to_sequence
 
 from .schema import (
     CONF_EXPORT_LIMIT,
@@ -157,28 +159,38 @@ class GridAdapter:
     def model_elements(self, config: GridConfigData) -> list[ModelElementConfig]:
         """Create model elements for Grid configuration."""
         return [
+            # Create Node for the grid (both source and sink - can import and export)
             {
                 "element_type": MODEL_ELEMENT_TYPE_NODE,
                 "name": config["name"],
                 "is_source": True,
                 "is_sink": True,
             },
+            # Create a connection from system node to grid
             {
                 "element_type": MODEL_ELEMENT_TYPE_CONNECTION,
                 "name": f"{config['name']}:connection",
                 "source": config["name"],
                 "target": config["connection"],
-                "max_power_source_target": config.get("import_limit"),  # source_target is grid to system (IMPORT)
-                "max_power_target_source": config.get("export_limit"),  # target_source is system to grid (EXPORT)
-                "price_source_target": config["import_price"],
-                "price_target_source": -config["export_price"],  # Negate because exporting earns money
+                "segments": {
+                    "power_limit": {
+                        "segment_type": "power_limit",
+                        "max_power_source_target": config.get("import_limit"),
+                        "max_power_target_source": config.get("export_limit"),
+                    },
+                    "pricing": {
+                        "segment_type": "pricing",
+                        "price_source_target": config["import_price"],
+                        "price_target_source": -config["export_price"],
+                    },
+                },
             },
         ]
 
     def outputs(
         self,
         name: str,
-        model_outputs: Mapping[str, Mapping[ModelOutputName, OutputData]],
+        model_outputs: Mapping[str, Mapping[ModelOutputName, ModelOutputValue]],
         *,
         config: GridConfigData,
         periods: NDArray[np.floating[Any]],
@@ -191,8 +203,8 @@ class GridAdapter:
 
         # source_target = grid to system = IMPORT
         # target_source = system to grid = EXPORT
-        power_import = connection[CONNECTION_POWER_SOURCE_TARGET]
-        power_export = connection[CONNECTION_POWER_TARGET_SOURCE]
+        power_import = expect_output_data(connection[CONNECTION_POWER_SOURCE_TARGET])
+        power_export = expect_output_data(connection[CONNECTION_POWER_TARGET_SOURCE])
 
         grid_outputs[GRID_POWER_EXPORT] = replace(power_export, type=OutputType.POWER)
         grid_outputs[GRID_POWER_IMPORT] = replace(power_import, type=OutputType.POWER)
@@ -207,8 +219,8 @@ class GridAdapter:
 
         # Calculate cost outputs in adapter layer: cost = power * price * period
         # This is a derived calculation, not from model layer outputs
-        import_prices = config["import_price"]
-        export_prices = config["export_price"]
+        import_prices = broadcast_to_sequence(config["import_price"], len(periods))
+        export_prices = broadcast_to_sequence(config["export_price"], len(periods))
 
         # Import cost: positive = money spent (power from grid * price * period)
         import_cost_values = tuple(
@@ -237,11 +249,17 @@ class GridAdapter:
             type=OutputType.COST, unit="$", values=net_cumsum, direction=None, state_last=True
         )
 
-        # Output the shadow prices if they exist
-        if CONNECTION_SHADOW_POWER_MAX_TARGET_SOURCE in connection:
-            grid_outputs[GRID_POWER_MAX_EXPORT_PRICE] = connection[CONNECTION_SHADOW_POWER_MAX_TARGET_SOURCE]
-        if CONNECTION_SHADOW_POWER_MAX_SOURCE_TARGET in connection:
-            grid_outputs[GRID_POWER_MAX_IMPORT_PRICE] = connection[CONNECTION_SHADOW_POWER_MAX_SOURCE_TARGET]
+        # Output the shadow prices from power_limit segment
+        if isinstance(segments_output := connection.get(CONNECTION_SEGMENTS), Mapping) and isinstance(
+            power_limit_outputs := segments_output.get("power_limit"), Mapping
+        ):
+            shadow_mappings: tuple[tuple[GridOutputName, str], ...] = (
+                (GRID_POWER_MAX_EXPORT_PRICE, POWER_LIMIT_TARGET_SOURCE),
+                (GRID_POWER_MAX_IMPORT_PRICE, POWER_LIMIT_SOURCE_TARGET),
+            )
+            for output_name, shadow_key in shadow_mappings:
+                if (shadow := expect_output_data(power_limit_outputs.get(shadow_key))) is not None:
+                    grid_outputs[output_name] = shadow
 
         return {GRID_DEVICE_GRID: grid_outputs}
 

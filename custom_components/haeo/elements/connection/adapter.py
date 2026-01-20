@@ -11,17 +11,24 @@ from homeassistant.core import HomeAssistant
 from custom_components.haeo.const import ConnectivityLevel
 from custom_components.haeo.data.loader import TimeSeriesLoader
 from custom_components.haeo.elements.input_fields import InputFieldInfo
-from custom_components.haeo.model import ModelElementConfig, ModelOutputName
+from custom_components.haeo.elements.output_utils import expect_output_data
+from custom_components.haeo.model import ModelElementConfig, ModelOutputName, ModelOutputValue
 from custom_components.haeo.model.const import OutputType
 from custom_components.haeo.model.elements import MODEL_ELEMENT_TYPE_CONNECTION
-from custom_components.haeo.model.elements.power_connection import (
+from custom_components.haeo.model.elements.connection import CONNECTION_OUTPUT_NAMES as MODEL_CONNECTION_OUTPUT_NAMES
+from custom_components.haeo.model.elements.connection import (
     CONNECTION_POWER_SOURCE_TARGET,
     CONNECTION_POWER_TARGET_SOURCE,
+    CONNECTION_SEGMENTS,
     CONNECTION_SHADOW_POWER_MAX_SOURCE_TARGET,
     CONNECTION_SHADOW_POWER_MAX_TARGET_SOURCE,
     CONNECTION_TIME_SLICE,
-    POWER_CONNECTION_OUTPUT_NAMES,
-    PowerConnectionOutputName,
+)
+from custom_components.haeo.model.elements.connection import ConnectionOutputName as ModelConnectionOutputName
+from custom_components.haeo.model.elements.segments import (
+    POWER_LIMIT_SOURCE_TARGET,
+    POWER_LIMIT_TARGET_SOURCE,
+    POWER_LIMIT_TIME_SLICE,
 )
 from custom_components.haeo.model.output_data import OutputData
 
@@ -41,12 +48,23 @@ from .schema import (
 CONNECTION_POWER_ACTIVE: Final = "connection_power_active"
 
 # Connection adapter output names include model outputs + adapter-synthesized outputs
-type ConnectionOutputName = PowerConnectionOutputName | Literal["connection_power_active"]
+type ConnectionOutputName = (
+    ModelConnectionOutputName
+    | Literal[
+        "connection_power_active",
+        "connection_shadow_power_max_source_target",
+        "connection_shadow_power_max_target_source",
+        "connection_time_slice",
+    ]
+)
 
 CONNECTION_OUTPUT_NAMES: Final[frozenset[ConnectionOutputName]] = frozenset(
     (
-        *POWER_CONNECTION_OUTPUT_NAMES,
+        *MODEL_CONNECTION_OUTPUT_NAMES,
         CONNECTION_POWER_ACTIVE,
+        CONNECTION_SHADOW_POWER_MAX_SOURCE_TARGET,
+        CONNECTION_SHADOW_POWER_MAX_TARGET_SOURCE,
+        CONNECTION_TIME_SLICE,
     )
 )
 
@@ -173,43 +191,63 @@ class ConnectionAdapter:
         }
 
     def model_elements(self, config: ConnectionConfigData) -> list[ModelElementConfig]:
-        """Return model element parameters for Connection configuration."""
+        """Return model element parameters for Connection configuration.
+
+        Builds the segments dictionary for the Connection model element with
+        explicit None values for missing configuration fields.
+        """
+        # Build segments using explicit None for missing parameters.
+        # Efficiency values are ratios (0-1) after input normalization.
         return [
             {
                 "element_type": MODEL_ELEMENT_TYPE_CONNECTION,
                 "name": config["name"],
                 "source": config["source"],
                 "target": config["target"],
-                "max_power_source_target": config.get("max_power_source_target"),
-                "max_power_target_source": config.get("max_power_target_source"),
-                "efficiency_source_target": config.get("efficiency_source_target"),
-                "efficiency_target_source": config.get("efficiency_target_source"),
-                "price_source_target": config.get("price_source_target"),
-                "price_target_source": config.get("price_target_source"),
+                "segments": {
+                    "efficiency": {
+                        "segment_type": "efficiency",
+                        "efficiency_source_target": config.get("efficiency_source_target"),
+                        "efficiency_target_source": config.get("efficiency_target_source"),
+                    },
+                    "power_limit": {
+                        "segment_type": "power_limit",
+                        "max_power_source_target": config.get("max_power_source_target"),
+                        "max_power_target_source": config.get("max_power_target_source"),
+                    },
+                    "pricing": {
+                        "segment_type": "pricing",
+                        "price_source_target": config.get("price_source_target"),
+                        "price_target_source": config.get("price_target_source"),
+                    },
+                },
             }
         ]
 
     def outputs(
         self,
         name: str,
-        model_outputs: Mapping[str, Mapping[ModelOutputName, OutputData]],
+        model_outputs: Mapping[str, Mapping[ModelOutputName, ModelOutputValue]],
         **_kwargs: Any,
     ) -> Mapping[ConnectionDeviceName, Mapping[ConnectionOutputName, OutputData]]:
         """Map model outputs to connection-specific output names."""
         connection = model_outputs[name]
+        power_source_target = expect_output_data(connection[CONNECTION_POWER_SOURCE_TARGET])
+        power_target_source = expect_output_data(connection[CONNECTION_POWER_TARGET_SOURCE])
+
         connection_outputs: dict[ConnectionOutputName, OutputData] = {
-            CONNECTION_POWER_SOURCE_TARGET: connection[CONNECTION_POWER_SOURCE_TARGET],
-            CONNECTION_POWER_TARGET_SOURCE: connection[CONNECTION_POWER_TARGET_SOURCE],
+            CONNECTION_POWER_SOURCE_TARGET: power_source_target,
+            CONNECTION_POWER_TARGET_SOURCE: power_target_source,
         }
 
         # Active connection power (source_target - target_source)
         connection_outputs[CONNECTION_POWER_ACTIVE] = replace(
-            connection[CONNECTION_POWER_SOURCE_TARGET],
+            power_source_target,
             values=[
                 st - ts
                 for st, ts in zip(
-                    connection[CONNECTION_POWER_SOURCE_TARGET].values,
-                    connection[CONNECTION_POWER_TARGET_SOURCE].values,
+                    power_source_target.values,
+                    power_target_source.values,
                     strict=True,
                 )
             ],
@@ -217,19 +255,18 @@ class ConnectionAdapter:
             type=OutputType.POWER_FLOW,
         )
 
-        # Shadow prices (computed by optimization) - only if constraints exist
-        if CONNECTION_SHADOW_POWER_MAX_SOURCE_TARGET in connection:
-            connection_outputs[CONNECTION_SHADOW_POWER_MAX_SOURCE_TARGET] = connection[
-                CONNECTION_SHADOW_POWER_MAX_SOURCE_TARGET
-            ]
-
-        if CONNECTION_SHADOW_POWER_MAX_TARGET_SOURCE in connection:
-            connection_outputs[CONNECTION_SHADOW_POWER_MAX_TARGET_SOURCE] = connection[
-                CONNECTION_SHADOW_POWER_MAX_TARGET_SOURCE
-            ]
-
-        if CONNECTION_TIME_SLICE in connection:
-            connection_outputs[CONNECTION_TIME_SLICE] = connection[CONNECTION_TIME_SLICE]
+        # Shadow prices are exposed under the model's `segments` output map.
+        if isinstance(segments_output := connection.get(CONNECTION_SEGMENTS), Mapping) and isinstance(
+            power_limit_outputs := segments_output.get("power_limit"), Mapping
+        ):
+            shadow_mappings: tuple[tuple[ConnectionOutputName, str], ...] = (
+                (CONNECTION_SHADOW_POWER_MAX_SOURCE_TARGET, POWER_LIMIT_SOURCE_TARGET),
+                (CONNECTION_SHADOW_POWER_MAX_TARGET_SOURCE, POWER_LIMIT_TARGET_SOURCE),
+                (CONNECTION_TIME_SLICE, POWER_LIMIT_TIME_SLICE),
+            )
+            for output_name, shadow_key in shadow_mappings:
+                if (shadow := expect_output_data(power_limit_outputs.get(shadow_key))) is not None:
+                    connection_outputs[output_name] = shadow
 
         return {CONNECTION_DEVICE_CONNECTION: connection_outputs}
 

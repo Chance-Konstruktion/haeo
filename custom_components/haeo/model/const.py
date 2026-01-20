@@ -18,8 +18,8 @@ class OutputType(StrEnum):
         ENERGY: Energy quantity (kWh)
 
     Percentage types:
-        SOC: State of charge percentage (%)
-        EFFICIENCY: Efficiency ratio percentage (%)
+        SOC: State of charge ratio (0-1, displayed as %)
+        EFFICIENCY: Efficiency ratio (0-1, displayed as %)
 
     Monetary types:
         PRICE: Price per energy unit ($/kWh, €/kWh, etc.)

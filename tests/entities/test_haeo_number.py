@@ -122,6 +122,24 @@ def boundary_field_info() -> InputFieldInfo[NumberEntityDescription]:
     )
 
 
+@pytest.fixture
+def percent_field_info() -> InputFieldInfo[NumberEntityDescription]:
+    """Return a sample InputFieldInfo for a percentage-based field."""
+    return InputFieldInfo(
+        field_name="soc",
+        entity_description=NumberEntityDescription(
+            key="soc",
+            translation_key="soc",
+            native_unit_of_measurement="%",
+            native_min_value=0.0,
+            native_max_value=100.0,
+            native_step=1.0,
+        ),
+        output_type=OutputType.STATE_OF_CHARGE,
+        time_series=True,
+    )
+
+
 def _create_subentry(name: str, data: dict[str, Any]) -> ConfigSubentry:
     """Create a ConfigSubentry with the given data."""
     return ConfigSubentry(
@@ -540,6 +558,32 @@ async def test_get_values_returns_forecast_values(
     assert len(values) == 2
 
 
+async def test_get_values_scales_percentage_fields(
+    hass: HomeAssistant,
+    config_entry: MockConfigEntry,
+    device_entry: Mock,
+    percent_field_info: InputFieldInfo[NumberEntityDescription],
+    horizon_manager: Mock,
+) -> None:
+    """Percentage-based fields should be normalized to ratios."""
+    subentry = _create_subentry("Test Battery", {"soc": 50.0})
+    config_entry.runtime_data = None
+
+    entity = HaeoInputNumber(
+        hass=hass,
+        config_entry=config_entry,
+        subentry=subentry,
+        field_info=percent_field_info,
+        device_entry=device_entry,
+        horizon_manager=horizon_manager,
+    )
+
+    entity._update_editable_forecast()
+
+    values = entity.get_values()
+    assert values == (0.5, 0.5)
+
+
 async def test_get_values_returns_none_without_forecast(
     hass: HomeAssistant,
     config_entry: MockConfigEntry,
@@ -930,7 +974,7 @@ async def test_editable_mode_with_boundaries_field(
     values = entity.get_values()
     assert values is not None
     assert len(values) == 3  # All 3 boundary timestamps
-    assert all(v == 50.0 for v in values)
+    assert all(v == 0.5 for v in values)
 
 
 async def test_async_load_data_with_boundaries_field(
@@ -967,7 +1011,7 @@ async def test_async_load_data_with_boundaries_field(
     # Should have 3 values
     assert entity.native_value == 10.0
     values = entity.get_values()
-    assert values == (10.0, 20.0, 30.0)
+    assert values == (0.1, 0.2, 0.3)
 
 
 async def test_entity_mode_property(

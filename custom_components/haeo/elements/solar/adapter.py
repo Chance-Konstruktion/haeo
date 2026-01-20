@@ -12,13 +12,12 @@ from homeassistant.core import HomeAssistant
 from custom_components.haeo.const import ConnectivityLevel
 from custom_components.haeo.data.loader import TimeSeriesLoader
 from custom_components.haeo.elements.input_fields import InputFieldDefaults, InputFieldInfo
-from custom_components.haeo.model import ModelElementConfig, ModelOutputName
+from custom_components.haeo.elements.output_utils import expect_output_data
+from custom_components.haeo.model import ModelElementConfig, ModelOutputName, ModelOutputValue
 from custom_components.haeo.model.const import OutputType
 from custom_components.haeo.model.elements import MODEL_ELEMENT_TYPE_CONNECTION, MODEL_ELEMENT_TYPE_NODE
-from custom_components.haeo.model.elements.power_connection import (
-    CONNECTION_POWER_SOURCE_TARGET,
-    CONNECTION_SHADOW_POWER_MAX_SOURCE_TARGET,
-)
+from custom_components.haeo.model.elements.connection import CONNECTION_POWER_SOURCE_TARGET, CONNECTION_SEGMENTS
+from custom_components.haeo.model.elements.segments import POWER_LIMIT_SOURCE_TARGET
 from custom_components.haeo.model.output_data import OutputData
 
 from .schema import (
@@ -120,27 +119,43 @@ class SolarAdapter:
                 "name": f"{config['name']}:connection",
                 "source": config["name"],
                 "target": config["connection"],
-                "max_power_source_target": config["forecast"],
-                "max_power_target_source": 0.0,
-                "price_source_target": config.get("price_production"),
-                "fixed_power": not config.get("curtailment", True),
+                "segments": {
+                    "power_limit": {
+                        "segment_type": "power_limit",
+                        "max_power_source_target": config["forecast"],
+                        "max_power_target_source": 0.0,
+                        "fixed": not config.get("curtailment", True),
+                    },
+                    "pricing": {
+                        "segment_type": "pricing",
+                        "price_source_target": config.get("price_production"),
+                        "price_target_source": None,
+                    },
+                },
             },
         ]
 
     def outputs(
         self,
         name: str,
-        model_outputs: Mapping[str, Mapping[ModelOutputName, OutputData]],
+        model_outputs: Mapping[str, Mapping[ModelOutputName, ModelOutputValue]],
         **_kwargs: Any,
     ) -> Mapping[SolarDeviceName, Mapping[SolarOutputName, OutputData]]:
         """Map model outputs to solar-specific output names."""
         connection = model_outputs[f"{name}:connection"]
 
-        power_source_target = connection[CONNECTION_POWER_SOURCE_TARGET]
+        power_source_target = expect_output_data(connection[CONNECTION_POWER_SOURCE_TARGET])
         solar_outputs: dict[SolarOutputName, OutputData] = {
             SOLAR_POWER: replace(power_source_target, type=OutputType.POWER),
-            SOLAR_FORECAST_LIMIT: connection[CONNECTION_SHADOW_POWER_MAX_SOURCE_TARGET],
         }
+
+        # Shadow price from power_limit segment (if present)
+        if (
+            isinstance(segments_output := connection.get(CONNECTION_SEGMENTS), Mapping)
+            and isinstance(power_limit_outputs := segments_output.get("power_limit"), Mapping)
+            and (shadow := expect_output_data(power_limit_outputs.get(POWER_LIMIT_SOURCE_TARGET))) is not None
+        ):
+            solar_outputs[SOLAR_FORECAST_LIMIT] = shadow
 
         return {SOLAR_DEVICE_SOLAR: solar_outputs}
 

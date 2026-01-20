@@ -1,22 +1,50 @@
 """Model connection output tests covering reporting and validation helpers."""
 
-from typing import Any
+from typing import Any, TypeGuard, cast
 
 from highspy import Highs
 from highspy.highs import highs_linear_expression, highs_var
 import numpy as np
+from numpy.typing import NDArray
 import pytest
 
+from custom_components.haeo.model.element import Element
 from custom_components.haeo.model.elements.connection import Connection
-from custom_components.haeo.model.elements.power_connection import PowerConnection
+from custom_components.haeo.model.output_data import ModelOutputValue, OutputData
 
 from . import test_data
-from .test_data.connection_types import ConnectionTestCase, ConnectionTestCaseInputs
+from .test_data.connection_types import (
+    ConnectionTestCase,
+    ConnectionTestCaseInputs,
+    ExpectedOutput,
+    ExpectedOutputFixture,
+    ExpectedOutputs,
+)
 
 
-def _solve_connection_scenario(
-    element: PowerConnection, inputs: ConnectionTestCaseInputs | None
-) -> dict[str, dict[str, Any]]:
+def _serialize_output_value(output_value: ModelOutputValue) -> ExpectedOutputFixture:
+    if isinstance(output_value, OutputData):
+        if output_value.unit is None:
+            msg = "Expected unit for connection output"
+            raise ValueError(msg)
+        output: ExpectedOutput = {
+            "type": output_value.type,
+            "unit": output_value.unit,
+            "values": tuple(float(value) for value in output_value.values),
+        }
+        return output
+    return {name: _serialize_output_value(child) for name, child in output_value.items()}
+
+
+class DummyElement(Element[str]):
+    """Minimal element for connection endpoint wiring in tests."""
+
+    def __init__(self, name: str, periods: NDArray[np.floating[Any]], solver: Highs) -> None:
+        """Create a dummy element with no outputs."""
+        super().__init__(name=name, periods=periods, solver=solver, output_names=frozenset())
+
+
+def _solve_connection_scenario(element: Connection[str], inputs: ConnectionTestCaseInputs | None) -> ExpectedOutputs:
     """Set up and solve an optimization scenario for a connection.
 
     Args:
@@ -29,6 +57,9 @@ def _solve_connection_scenario(
     """
     # Use the element's solver instance (set in constructor)
     h = element._solver
+    source = DummyElement(element.source, element.periods, h)
+    target = DummyElement(element.target, element.periods, h)
+    element.set_endpoints(source, target)
 
     # Always call constraints to set up constraints (variables already exist)
     element.constraints()
@@ -37,14 +68,7 @@ def _solve_connection_scenario(
         # No optimization - just solve with no objective and get outputs directly
         h.run()
         outputs = element.outputs()
-        return {
-            name: {
-                "type": output_data.type,
-                "unit": output_data.unit,
-                "values": output_data.values,
-            }
-            for name, output_data in outputs.items()
-        }
+        return {name: _serialize_output_value(output_data) for name, output_data in outputs.items()}
 
     # Get n_periods and periods from element
     n_periods = element.n_periods
@@ -96,14 +120,27 @@ def _solve_connection_scenario(
 
     # Extract and return outputs
     outputs = element.outputs()
-    return {
-        name: {
-            "type": output_data.type,
-            "unit": output_data.unit,
-            "values": output_data.values,
-        }
-        for name, output_data in outputs.items()
-    }
+    return {name: _serialize_output_value(output_data) for name, output_data in outputs.items()}
+
+
+def _is_expected_output(value: ExpectedOutputFixture) -> TypeGuard[ExpectedOutput]:
+    return {"type", "unit", "values"}.issubset(value.keys())
+
+
+def _assert_outputs_match(actual: ExpectedOutputFixture, expected: ExpectedOutputFixture) -> None:
+    if _is_expected_output(expected):
+        assert _is_expected_output(actual)
+        assert actual["type"] == expected["type"]
+        assert actual["unit"] == expected["unit"]
+        assert actual["values"] == pytest.approx(expected["values"], rel=1e-9, abs=1e-9)
+        return
+
+    assert not _is_expected_output(actual)
+    actual_map = cast("ExpectedOutputs", actual)
+    expected_map = cast("ExpectedOutputs", expected)
+    assert set(actual_map.keys()) == set(expected_map.keys())
+    for output_name, expected_value in expected_map.items():
+        _assert_outputs_match(actual_map[output_name], expected_value)
 
 
 @pytest.mark.parametrize(
@@ -119,20 +156,15 @@ def test_connection_outputs(case: ConnectionTestCase, solver: Highs) -> None:
     data = case["data"].copy()
     data["solver"] = solver
     element = factory(**data)
+    assert isinstance(element, Connection)
 
     # Run optimization scenario (or get outputs directly if no inputs)
     outputs = _solve_connection_scenario(element, case.get("inputs"))
 
     # Validate outputs match expected
-    expected_outputs = case.get("expected_outputs")
-    assert expected_outputs is not None
-    assert set(outputs.keys()) == set(expected_outputs.keys())
-
-    for output_name, expected in expected_outputs.items():
-        output = outputs[output_name]
-        assert output["type"] == expected["type"]
-        assert output["unit"] == expected["unit"]
-        assert output["values"] == pytest.approx(expected["values"], rel=1e-9, abs=1e-9)
+    assert "expected_outputs" in case
+    expected_outputs = case["expected_outputs"]
+    _assert_outputs_match(outputs, expected_outputs)
 
 
 @pytest.mark.parametrize(
@@ -160,6 +192,9 @@ def test_base_connection_power_into_properties(solver: Highs) -> None:
         source="source_element",
         target="target_element",
     )
+    source = DummyElement("source_element", conn.periods, solver)
+    target = DummyElement("target_element", conn.periods, solver)
+    conn.set_endpoints(source, target)
 
     # Fix power values: 5 kW source->target in period 0, 3 kW target->source in period 1
     solver.addConstr(conn.power_source_target[0] == 5.0)

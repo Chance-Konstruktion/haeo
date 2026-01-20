@@ -2,20 +2,20 @@
 
 import numpy as np
 
-from custom_components.haeo.model.elements.power_connection import PowerConnection
+from custom_components.haeo.model.elements.connection import Connection
 
 from .connection_types import ConnectionTestCase
 
 VALID_CASES: list[ConnectionTestCase] = [
     {
         "description": "Connection with forward flow only",
-        "factory": PowerConnection,
+        "factory": Connection,
         "data": {
             "name": "forward_connection",
             "periods": np.array([1.0] * 3),
             "source": "battery",
             "target": "load",
-            "max_power_source_target": 5.0,
+            "segments": {"power_limit": {"segment_type": "power_limit", "max_power_source_target": 5.0}},
         },
         "inputs": {
             "source_power": [None, None, None],  # Infinite source
@@ -26,18 +26,18 @@ VALID_CASES: list[ConnectionTestCase] = [
         "expected_outputs": {
             "connection_power_source_target": {"type": "power_flow", "unit": "kW", "values": (5.0, 5.0, 5.0)},
             "connection_power_target_source": {"type": "power_flow", "unit": "kW", "values": (0.0, 0.0, 0.0)},
-            "connection_shadow_power_max_source_target": {"type": "shadow_price", "unit": "$/kW", "values": (-0.1, -0.1, -0.1)},
+            "segments": {"power_limit": {"source_target": {"type": "shadow_price", "unit": "$/kW", "values": (-0.1, -0.1, -0.1)}}},
         },
     },
     {
         "description": "Connection with reverse flow only",
-        "factory": PowerConnection,
+        "factory": Connection,
         "data": {
             "name": "reverse_connection",
             "periods": np.array([1.0] * 3),
             "source": "grid",
             "target": "solar",
-            "max_power_target_source": 3.0,
+            "segments": {"power_limit": {"segment_type": "power_limit", "max_power_target_source": 3.0}},
         },
         "inputs": {
             "source_power": [None, None, None],  # Infinite
@@ -48,18 +48,18 @@ VALID_CASES: list[ConnectionTestCase] = [
         "expected_outputs": {
             "connection_power_source_target": {"type": "power_flow", "unit": "kW", "values": (0.0, 0.0, 0.0)},
             "connection_power_target_source": {"type": "power_flow", "unit": "kW", "values": (3.0, 3.0, 3.0)},
-            "connection_shadow_power_max_target_source": {"type": "shadow_price", "unit": "$/kW", "values": (-0.1, -0.1, -0.1)},
+            "segments": {"power_limit": {"target_source": {"type": "shadow_price", "unit": "$/kW", "values": (-0.1, -0.1, -0.1)}}},
         },
     },
     {
         "description": "Connection respecting forward power limit",
-        "factory": PowerConnection,
+        "factory": Connection,
         "data": {
             "name": "limited_forward",
             "periods": np.array([1.0] * 2),
             "source": "gen",
             "target": "net",
-            "max_power_source_target": 4.0,
+            "segments": {"power_limit": {"segment_type": "power_limit", "max_power_source_target": 4.0}},
         },
         "inputs": {
             "source_power": [None, None],
@@ -70,19 +70,27 @@ VALID_CASES: list[ConnectionTestCase] = [
         "expected_outputs": {
             "connection_power_source_target": {"type": "power_flow", "unit": "kW", "values": (4.0, 4.0)},
             "connection_power_target_source": {"type": "power_flow", "unit": "kW", "values": (0.0, 0.0)},
-            "connection_shadow_power_max_source_target": {"type": "shadow_price", "unit": "$/kW", "values": (-0.1, -0.1)},
+            "segments": {"power_limit": {"source_target": {"type": "shadow_price", "unit": "$/kW", "values": (-0.1, -0.1)}}},
         },
     },
     {
         "description": "Connection with efficiency losses",
-        "factory": PowerConnection,
+        "factory": Connection,
         "data": {
             "name": "inverter",
             "periods": np.array([1.0] * 2),
             "source": "dc",
             "target": "ac",
-            "max_power_source_target": 10.0,
-            "efficiency_source_target": 95.0,
+            "segments": {
+                "efficiency": {
+                    "segment_type": "efficiency",
+                    "efficiency_source_target": 0.95,
+                },
+                "power_limit": {
+                    "segment_type": "power_limit",
+                    "max_power_source_target": 10.0,
+                },
+            },
         },
         "inputs": {
             "source_power": [5.0, 5.0],  # Fixed source
@@ -93,19 +101,21 @@ VALID_CASES: list[ConnectionTestCase] = [
         "expected_outputs": {
             "connection_power_source_target": {"type": "power_flow", "unit": "kW", "values": (5.0, 5.0)},
             "connection_power_target_source": {"type": "power_flow", "unit": "kW", "values": (0.0, 0.0)},
-            "connection_shadow_power_max_source_target": {"type": "shadow_price", "unit": "$/kW", "values": (0.0, 0.0)},
+            "segments": {"power_limit": {"source_target": {"type": "shadow_price", "unit": "$/kW", "values": (0.0, 0.0)}}},
         },
     },
     {
         "description": "Connection with transfer pricing and power flow",
-        "factory": PowerConnection,
+        "factory": Connection,
         "data": {
             "name": "priced_active_link",
             "periods": np.array([1.0, 0.5]),
             "source": "cheap_grid",
             "target": "load_node",
-            "max_power_source_target": 5.0,
-            "price_source_target": np.array([0.10, 0.20]),  # Transfer pricing
+            "segments": {
+                "power_limit": {"segment_type": "power_limit", "max_power_source_target": 5.0},
+                "pricing": {"segment_type": "pricing", "price_source_target": np.array([0.10, 0.20])},  # Transfer pricing
+            },
         },
         "inputs": {
             "source_power": [None, None],  # Infinite source
@@ -116,18 +126,18 @@ VALID_CASES: list[ConnectionTestCase] = [
         "expected_outputs": {
             "connection_power_source_target": {"type": "power_flow", "unit": "kW", "values": (5.0, 5.0)},
             "connection_power_target_source": {"type": "power_flow", "unit": "kW", "values": (0.0, 0.0)},
-            "connection_shadow_power_max_source_target": {"type": "shadow_price", "unit": "$/kW", "values": (-0.9, -0.4)},
+            "segments": {"power_limit": {"source_target": {"type": "shadow_price", "unit": "$/kW", "values": (-0.9, -0.4)}}},
         },
     },
     {
         "description": "Connection with time-varying limits",
-        "factory": PowerConnection,
+        "factory": Connection,
         "data": {
             "name": "varying_connection",
             "periods": np.array([1.0] * 3),
             "source": "grid",
             "target": "net",
-            "max_power_source_target": np.array([10.0, 5.0, 8.0]),
+            "segments": {"power_limit": {"segment_type": "power_limit", "max_power_source_target": np.array([10.0, 5.0, 8.0])}},
         },
         "inputs": {
             "source_power": [None, None, None],
@@ -138,21 +148,29 @@ VALID_CASES: list[ConnectionTestCase] = [
         "expected_outputs": {
             "connection_power_source_target": {"type": "power_flow", "unit": "kW", "values": (10.0, 5.0, 8.0)},
             "connection_power_target_source": {"type": "power_flow", "unit": "kW", "values": (0.0, 0.0, 0.0)},
-            "connection_shadow_power_max_source_target": {"type": "shadow_price", "unit": "$/kW", "values": (-0.1, -0.1, -0.1)},
+            "segments": {"power_limit": {"source_target": {"type": "shadow_price", "unit": "$/kW", "values": (-0.1, -0.1, -0.1)}}},
         },
     },
     {
         "description": "Connection with bidirectional transfer pricing and forward flow",
-        "factory": PowerConnection,
+        "factory": Connection,
         "data": {
             "name": "bidirectional_priced",
             "periods": np.array([1.0, 1.0]),
             "source": "node_a",
             "target": "node_b",
-            "max_power_source_target": 4.0,
-            "max_power_target_source": 3.0,
-            "price_source_target": np.array([0.10, 0.20]),
-            "price_target_source": np.array([0.15, 0.25]),
+            "segments": {
+                "power_limit": {
+                    "segment_type": "power_limit",
+                    "max_power_source_target": 4.0,
+                    "max_power_target_source": 3.0,
+                },
+                "pricing": {
+                    "segment_type": "pricing",
+                    "price_source_target": np.array([0.10, 0.20]),
+                    "price_target_source": np.array([0.15, 0.25]),
+                },
+            },
         },
         "inputs": {
             "source_power": [None, None],
@@ -163,23 +181,35 @@ VALID_CASES: list[ConnectionTestCase] = [
         "expected_outputs": {
             "connection_power_source_target": {"type": "power_flow", "unit": "kW", "values": (4.0, 4.0)},
             "connection_power_target_source": {"type": "power_flow", "unit": "kW", "values": (0.0, 0.0)},
-            "connection_shadow_power_max_source_target": {"type": "shadow_price", "unit": "$/kW", "values": (-0.9, -0.8)},
-            "connection_shadow_power_max_target_source": {"type": "shadow_price", "unit": "$/kW", "values": (0.0, 0.0)},
-            "connection_time_slice": {"type": "shadow_price", "unit": "$/kW", "values": (0.0, 0.0)},
+            "segments": {
+                "power_limit": {
+                    "source_target": {"type": "shadow_price", "unit": "$/kW", "values": (-0.9, -0.8)},
+                    "target_source": {"type": "shadow_price", "unit": "$/kW", "values": (0.0, 0.0)},
+                    "time_slice": {"type": "shadow_price", "unit": "$/kW", "values": (0.0, 0.0)},
+                }
+            },
         },
     },
     {
         "description": "Connection with bidirectional efficiency losses",
-        "factory": PowerConnection,
+        "factory": Connection,
         "data": {
             "name": "bidirectional_converter",
             "periods": np.array([1.0] * 2),
             "source": "dc_bus",
             "target": "ac_bus",
-            "max_power_source_target": 10.0,
-            "max_power_target_source": 10.0,
-            "efficiency_source_target": 95.0,
-            "efficiency_target_source": 93.0,
+            "segments": {
+                "efficiency": {
+                    "segment_type": "efficiency",
+                    "efficiency_source_target": 0.95,
+                    "efficiency_target_source": 0.93,
+                },
+                "power_limit": {
+                    "segment_type": "power_limit",
+                    "max_power_source_target": 10.0,
+                    "max_power_target_source": 10.0,
+                },
+            },
         },
         "inputs": {
             "source_power": [5.0, -3.0],
@@ -190,21 +220,30 @@ VALID_CASES: list[ConnectionTestCase] = [
         "expected_outputs": {
             "connection_power_source_target": {"type": "power_flow", "unit": "kW", "values": (5.0, 0.0)},
             "connection_power_target_source": {"type": "power_flow", "unit": "kW", "values": (0.0, 3.0)},
-            "connection_shadow_power_max_source_target": {"type": "shadow_price", "unit": "$/kW", "values": (0.0, 0.0)},
-            "connection_shadow_power_max_target_source": {"type": "shadow_price", "unit": "$/kW", "values": (0.0, 0.0)},
-            "connection_time_slice": {"type": "shadow_price", "unit": "$/kW", "values": (0.0, 0.0)},
+            "segments": {
+                "power_limit": {
+                    "source_target": {"type": "shadow_price", "unit": "$/kW", "values": (0.0, 0.0)},
+                    "target_source": {"type": "shadow_price", "unit": "$/kW", "values": (0.0, 0.0)},
+                    "time_slice": {"type": "shadow_price", "unit": "$/kW", "values": (0.0, 0.0)},
+                }
+            },
         },
     },
     {
         "description": "Connection with fixed power in reverse direction",
-        "factory": PowerConnection,
+        "factory": Connection,
         "data": {
             "name": "fixed_reverse",
             "periods": np.array([1.0] * 2),
             "source": "load",
             "target": "generator",
-            "max_power_target_source": 4.0,
-            "fixed_power": True,
+            "segments": {
+                "power_limit": {
+                    "segment_type": "power_limit",
+                    "max_power_target_source": 4.0,
+                    "fixed": True,
+                }
+            },
         },
         "inputs": {
             "source_power": [None, None],
@@ -215,7 +254,7 @@ VALID_CASES: list[ConnectionTestCase] = [
         "expected_outputs": {
             "connection_power_source_target": {"type": "power_flow", "unit": "kW", "values": (0.0, 0.0)},
             "connection_power_target_source": {"type": "power_flow", "unit": "kW", "values": (4.0, 4.0)},
-            "connection_shadow_power_max_target_source": {"type": "shadow_price", "unit": "$/kW", "values": (0.0, 0.0)},
+            "segments": {"power_limit": {"target_source": {"type": "shadow_price", "unit": "$/kW", "values": (0.0, 0.0)}}},
         },
     },
 ]

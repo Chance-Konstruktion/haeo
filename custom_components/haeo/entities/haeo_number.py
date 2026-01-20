@@ -7,7 +7,7 @@ from typing import Any
 
 from homeassistant.components.number import NumberEntity, NumberEntityDescription
 from homeassistant.config_entries import ConfigSubentry
-from homeassistant.const import EntityCategory
+from homeassistant.const import PERCENTAGE, EntityCategory
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceEntry
 from homeassistant.helpers.event import EventStateChangedData, async_track_state_change_event
@@ -288,7 +288,10 @@ class HaeoInputNumber(NumberEntity):
         """Return the forecast values as a tuple, or None if not loaded."""
         forecast = self._attr_extra_state_attributes.get("forecast")
         if forecast:
-            return tuple(point["value"] for point in forecast if isinstance(point, dict) and "value" in point)
+            values = tuple(point["value"] for point in forecast if isinstance(point, dict) and "value" in point)
+            if self.entity_description.native_unit_of_measurement == PERCENTAGE:
+                return tuple(float(value) / 100.0 for value in values)
+            return values
         return None
 
     async def async_set_native_value(self, value: float) -> None:
