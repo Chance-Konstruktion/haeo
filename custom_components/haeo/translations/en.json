@@ -9,8 +9,7 @@
           "advanced_mode": "Advanced Mode",
           "debounce_seconds": "Debounce Window (seconds)",
           "horizon_preset": "Planning Horizon",
-          "name": "System Name",
-          "update_interval_minutes": "Update Interval (minutes)"
+          "name": "System Name"
         }
       },
       "custom_tiers": {
@@ -53,8 +52,7 @@
         "data": {
           "advanced_mode": "Advanced Mode",
           "debounce_seconds": "Debounce Window (seconds)",
-          "horizon_preset": "Planning Horizon",
-          "update_interval_minutes": "Update Interval (minutes)"
+          "horizon_preset": "Planning Horizon"
         }
       }
     },
