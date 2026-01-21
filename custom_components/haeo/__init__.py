@@ -22,6 +22,7 @@ from custom_components.haeo.horizon import HorizonManager
 from custom_components.haeo.services import async_setup_services
 
 if TYPE_CHECKING:
+    from custom_components.haeo.entities.auto_optimize_switch import AutoOptimizeSwitch
     from custom_components.haeo.entities.haeo_number import HaeoInputNumber
     from custom_components.haeo.entities.haeo_switch import HaeoInputSwitch
 
@@ -52,6 +53,7 @@ class HaeoRuntimeData:
     Attributes:
         horizon_manager: Manager providing forecast time windows.
         input_entities: Dict of input entities keyed by (element_name, field_name).
+        auto_optimize_switch: Switch controlling automatic optimization.
         coordinator: Coordinator for network-level optimization (set after input platforms).
         value_update_in_progress: Flag to skip reload when updating entity values.
 
@@ -59,6 +61,7 @@ class HaeoRuntimeData:
 
     horizon_manager: HorizonManager
     input_entities: dict[tuple[str, str], HaeoInputNumber | HaeoInputSwitch] = field(default_factory=dict)
+    auto_optimize_switch: AutoOptimizeSwitch | None = field(default=None)
     coordinator: HaeoDataUpdateCoordinator | None = field(default=None)
     value_update_in_progress: bool = field(default=False)
 
@@ -130,12 +133,13 @@ async def async_update_listener(hass: HomeAssistant, entry: HaeoConfigEntry) -> 
     """Handle options update or subentry changes."""
     # Check if this is a value-only update from an input entity
     runtime_data = entry.runtime_data
-    if runtime_data is not None and runtime_data.value_update_in_progress:
-        # Clear the flag and skip reload - just refresh coordinator
+    if runtime_data and runtime_data.value_update_in_progress:
+        # Clear the flag and skip reload - signal optimization is stale
         runtime_data.value_update_in_progress = False
-        _LOGGER.debug("Value update detected, refreshing coordinator without reload")
-        if runtime_data.coordinator is not None:
-            await runtime_data.coordinator.async_refresh()
+        coordinator = runtime_data.coordinator
+        if coordinator:
+            _LOGGER.debug("Value update detected, signaling optimization stale")
+            coordinator.signal_optimization_stale()
         return
 
     await _ensure_required_subentries(hass, entry)

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EntityCategory, UnitOfTime
+from homeassistant.const import STATE_ON, EntityCategory, UnitOfTime
 from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, callback
 from homeassistant.helpers.event import EventStateChangedData, async_call_later, async_track_state_change_event
 from homeassistant.helpers.translation import async_get_translations
@@ -283,6 +283,9 @@ class HaeoDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
 
         Sets up per-element callbacks so each input entity only updates
         its specific element's TrackedParams when it changes.
+
+        Also subscribes to the auto-optimize switch to control horizon manager
+        pause/resume and trigger optimization on re-enable.
         """
         runtime_data = self._get_runtime_data()
         if runtime_data is None:
@@ -290,6 +293,18 @@ class HaeoDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
 
         # Subscribe to horizon manager changes (requires full re-optimization)
         runtime_data.horizon_manager.subscribe(self._handle_horizon_change)
+
+        # Subscribe to auto-optimize switch state changes
+        if runtime_data.auto_optimize_switch is not None:
+            self._state_change_unsubs.append(
+                async_track_state_change_event(
+                    self.hass,
+                    [runtime_data.auto_optimize_switch.entity_id],
+                    self._handle_auto_optimize_switch_change,
+                )
+            )
+            # Apply initial state from the switch (it may have been restored)
+            self._apply_auto_optimize_state(is_enabled=runtime_data.auto_optimize_switch.is_on or False)
 
         # Group input entities by element name
         entities_by_element: dict[str, list[str]] = {}
@@ -339,17 +354,77 @@ class HaeoDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
         network_module.update_element(self.network, element_config)
 
         # Trigger optimization (with debouncing)
-        self._trigger_optimization()
+        self.signal_optimization_stale()
 
     @callback
     def _handle_horizon_change(self) -> None:
         """Handle horizon manager changes."""
         # Just trigger optimization - _are_inputs_aligned will gate until all elements update
-        self._trigger_optimization()
+        self.signal_optimization_stale()
 
     @callback
-    def _trigger_optimization(self) -> None:
-        """Trigger optimization with debouncing."""
+    def _handle_auto_optimize_switch_change(self, event: Event[EventStateChangedData]) -> None:
+        """Handle auto-optimize switch state change.
+
+        On turn-on: resume horizon manager and trigger optimization.
+        On turn-off: pause horizon manager.
+        """
+        new_state = event.data["new_state"]
+        if new_state is None:
+            return
+
+        is_enabled = new_state.state == STATE_ON
+        self._apply_auto_optimize_state(is_enabled=is_enabled)
+
+        # If turned on, trigger optimization to catch up on any changes while disabled
+        if is_enabled:
+            self.hass.async_create_task(self.async_run_optimization())
+
+    def _apply_auto_optimize_state(self, *, is_enabled: bool) -> None:
+        """Apply auto-optimize state to the horizon manager.
+
+        Pauses/resumes the horizon manager based on the auto-optimize setting.
+        """
+        runtime_data = self._get_runtime_data()
+        if runtime_data is None:
+            return
+
+        if is_enabled:
+            runtime_data.horizon_manager.resume()
+        else:
+            runtime_data.horizon_manager.pause()
+
+    @property
+    def auto_optimize_enabled(self) -> bool:
+        """Return whether automatic optimization is enabled.
+
+        Reads from the auto-optimize switch entity stored in runtime_data.
+        """
+        runtime_data = self._get_runtime_data()
+        if not runtime_data or not runtime_data.auto_optimize_switch:
+            msg = "auto_optimize_switch not available"
+            raise RuntimeError(msg)
+        return runtime_data.auto_optimize_switch.is_on or False
+
+    async def async_run_optimization(self) -> None:
+        """Manually trigger optimization, bypassing debouncing and auto-optimize check."""
+        if not self._are_inputs_aligned():
+            _LOGGER.debug("Inputs not aligned, skipping manual optimization")
+            return
+
+        await self.async_refresh()
+
+    @callback
+    def signal_optimization_stale(self) -> None:
+        """Signal that optimization results are stale and a refresh may be needed.
+
+        Checks auto_optimize_enabled before proceeding. If disabled, does nothing.
+        Handles debouncing to prevent excessive refreshes.
+        """
+        # Skip if auto-optimization is disabled
+        if not self.auto_optimize_enabled:
+            return
+
         # If optimization is in progress, just mark pending
         if self._optimization_in_progress:
             self._pending_refresh = True

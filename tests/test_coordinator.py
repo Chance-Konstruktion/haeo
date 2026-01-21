@@ -8,8 +8,9 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
-from homeassistant.const import UnitOfEnergy
-from homeassistant.core import HomeAssistant
+from homeassistant.const import STATE_OFF, STATE_ON, UnitOfEnergy
+from homeassistant.core import HomeAssistant, State
+from homeassistant.helpers.event import EventStateChangedData
 from homeassistant.helpers.update_coordinator import UpdateFailed
 from homeassistant.util import dt as dt_util
 import numpy as np
@@ -205,6 +206,7 @@ def mock_runtime_data(hass: HomeAssistant, mock_hub_entry: MockConfigEntry) -> H
 
     The horizon_manager is a MagicMock - use _get_mock_horizon() to access mock methods.
     """
+    from custom_components.haeo.entities.auto_optimize_switch import AutoOptimizeSwitch  # noqa: PLC0415
     from custom_components.haeo.horizon import HorizonManager  # noqa: PLC0415
 
     # Create mock horizon manager (typed as HorizonManager but is MagicMock at runtime)
@@ -212,8 +214,16 @@ def mock_runtime_data(hass: HomeAssistant, mock_hub_entry: MockConfigEntry) -> H
     mock_horizon.get_forecast_timestamps.return_value = (1000.0, 2000.0, 3000.0)
     mock_horizon.subscribe.return_value = MagicMock()  # Unsubscribe function
 
+    # Create mock auto-optimize switch (default to on)
+    mock_auto_optimize_switch: Any = MagicMock(spec=AutoOptimizeSwitch)
+    mock_auto_optimize_switch.is_on = True
+    mock_auto_optimize_switch.entity_id = "switch.haeo_auto_optimize"
+
     # Create runtime data
-    runtime_data = HaeoRuntimeData(horizon_manager=mock_horizon)
+    runtime_data = HaeoRuntimeData(
+        horizon_manager=mock_horizon,
+        auto_optimize_switch=mock_auto_optimize_switch,
+    )
 
     # Store on config entry
     mock_hub_entry.runtime_data = runtime_data
@@ -591,7 +601,7 @@ def test_coordinator_cleanup_invokes_listener(
     mock_runtime_data: HaeoRuntimeData,
     patch_state_change_listener: MagicMock,
 ) -> None:
-    """cleanup() should call the unsubscribe callback and clear the reference."""
+    """cleanup() should call the unsubscribe callbacks and clear the references."""
 
     unsubscribe = MagicMock()
     patch_state_change_listener.return_value = unsubscribe
@@ -605,11 +615,14 @@ def test_coordinator_cleanup_invokes_listener(
 
     # Subscription now happens after first refresh, so simulate that
     coordinator._subscribe_to_input_entities()
-    assert len(coordinator._state_change_unsubs) > 0
+    # Should have subscriptions for: input entity + auto-optimize switch
+    num_subs = len(coordinator._state_change_unsubs)
+    assert num_subs >= 2  # At least input entity + auto-optimize switch
 
     coordinator.cleanup()
 
-    unsubscribe.assert_called_once()
+    # All unsubscribers should be called
+    assert unsubscribe.call_count == num_subs
     assert len(coordinator._state_change_unsubs) == 0
 
 
@@ -624,7 +637,7 @@ def test_element_state_change_triggers_update_and_optimization(
 
     with (
         patch.object(coordinator, "_load_element_config") as load_mock,
-        patch.object(coordinator, "_trigger_optimization") as trigger_mock,
+        patch.object(coordinator, "signal_optimization_stale") as trigger_mock,
         patch("custom_components.haeo.coordinator.coordinator.network_module.update_element") as update_mock,
     ):
         load_mock.return_value = {"element_type": "battery", "name": "Test Battery"}
@@ -648,14 +661,14 @@ def test_horizon_change_triggers_optimization(
     """Horizon manager changes trigger optimization."""
     coordinator = HaeoDataUpdateCoordinator(hass, mock_hub_entry)
 
-    with patch.object(coordinator, "_trigger_optimization") as trigger_mock:
+    with patch.object(coordinator, "signal_optimization_stale") as trigger_mock:
         coordinator._handle_horizon_change()
 
     trigger_mock.assert_called_once()
 
 
 @pytest.mark.usefixtures("mock_battery_subentry", "mock_grid_subentry")
-def test_trigger_optimization_marks_pending_when_in_progress(
+def test_signal_optimization_stale_marks_pending_when_in_progress(
     hass: HomeAssistant,
     mock_hub_entry: MockConfigEntry,
     mock_runtime_data: HaeoRuntimeData,
@@ -665,13 +678,13 @@ def test_trigger_optimization_marks_pending_when_in_progress(
     coordinator._optimization_in_progress = True
     coordinator._pending_refresh = False
 
-    coordinator._trigger_optimization()
+    coordinator.signal_optimization_stale()
 
     assert coordinator._pending_refresh is True
 
 
 @pytest.mark.usefixtures("mock_battery_subentry", "mock_grid_subentry")
-def test_trigger_optimization_schedules_timer_in_cooldown(
+def test_signal_optimization_stale_schedules_timer_in_cooldown(
     hass: HomeAssistant,
     mock_hub_entry: MockConfigEntry,
     mock_runtime_data: HaeoRuntimeData,
@@ -683,7 +696,7 @@ def test_trigger_optimization_schedules_timer_in_cooldown(
 
     with patch("custom_components.haeo.coordinator.coordinator.async_call_later") as mock_timer:
         mock_timer.return_value = MagicMock()  # Return unsubscribe callback
-        coordinator._trigger_optimization()
+        coordinator.signal_optimization_stale()
 
     assert coordinator._pending_refresh is True
     mock_timer.assert_called_once()
@@ -694,7 +707,7 @@ def test_trigger_optimization_schedules_timer_in_cooldown(
 
 
 @pytest.mark.usefixtures("mock_battery_subentry", "mock_grid_subentry")
-def test_trigger_optimization_reuses_existing_timer(
+def test_signal_optimization_stale_reuses_existing_timer(
     hass: HomeAssistant,
     mock_hub_entry: MockConfigEntry,
     mock_runtime_data: HaeoRuntimeData,
@@ -707,7 +720,7 @@ def test_trigger_optimization_reuses_existing_timer(
     coordinator._debounce_timer = existing_timer
 
     with patch("custom_components.haeo.coordinator.coordinator.async_call_later") as mock_timer:
-        coordinator._trigger_optimization()
+        coordinator.signal_optimization_stale()
 
     # Should not schedule new timer since one exists
     mock_timer.assert_not_called()
@@ -990,7 +1003,7 @@ def test_cleanup_clears_debounce_timer(
 
 
 @pytest.mark.usefixtures("mock_battery_subentry", "mock_grid_subentry")
-def test_trigger_optimization_optimizes_immediately_outside_cooldown(
+def test_signal_optimization_stale_optimizes_immediately_outside_cooldown(
     hass: HomeAssistant,
     mock_hub_entry: MockConfigEntry,
     mock_runtime_data: HaeoRuntimeData,
@@ -1002,7 +1015,7 @@ def test_trigger_optimization_optimizes_immediately_outside_cooldown(
     coordinator._debounce_seconds = 5.0
 
     with patch.object(coordinator, "_maybe_trigger_refresh") as mock_trigger:
-        coordinator._trigger_optimization()
+        coordinator.signal_optimization_stale()
 
     mock_trigger.assert_called_once()
 
@@ -1168,7 +1181,7 @@ def test_handle_element_update_logs_and_returns_on_load_error(
             "_load_element_config",
             side_effect=ValueError("Missing required field"),
         ),
-        patch.object(coordinator, "_trigger_optimization") as trigger_mock,
+        patch.object(coordinator, "signal_optimization_stale") as trigger_mock,
         patch("custom_components.haeo.coordinator.coordinator._LOGGER") as mock_logger,
     ):
         # Should not raise - logs and returns
@@ -1230,3 +1243,240 @@ def test_element_update_callback_calls_handle_element_update(
 
     # Verify _handle_element_update was called with correct element name
     handle_mock.assert_called_once_with("Test Battery")
+
+
+# ===== Tests for auto-optimize control =====
+
+
+def test_auto_optimize_enabled_raises_when_no_switch(
+    hass: HomeAssistant,
+    mock_hub_entry: MockConfigEntry,
+) -> None:
+    """Auto-optimize raises error when no switch is available."""
+    # Create runtime data without auto_optimize_switch
+    from custom_components.haeo.horizon import HorizonManager  # noqa: PLC0415
+
+    mock_horizon: Any = MagicMock(spec=HorizonManager)
+    mock_hub_entry.runtime_data = HaeoRuntimeData(horizon_manager=mock_horizon)
+
+    coordinator = HaeoDataUpdateCoordinator(hass, mock_hub_entry)
+    with pytest.raises(RuntimeError, match="auto_optimize_switch not available"):
+        _ = coordinator.auto_optimize_enabled
+
+
+def test_auto_optimize_enabled_reads_from_switch(
+    hass: HomeAssistant,
+    mock_hub_entry: MockConfigEntry,
+    mock_runtime_data: HaeoRuntimeData,
+) -> None:
+    """Auto-optimize reads state from the switch entity."""
+    switch = mock_runtime_data.auto_optimize_switch
+    assert switch is not None
+
+    coordinator = HaeoDataUpdateCoordinator(hass, mock_hub_entry)
+
+    # Switch is on by default in fixture
+    assert coordinator.auto_optimize_enabled is True
+
+    # Change switch to off
+    switch.is_on = False
+    assert coordinator.auto_optimize_enabled is False
+
+    # Change switch back to on
+    switch.is_on = True
+    assert coordinator.auto_optimize_enabled is True
+
+
+def test_signal_optimization_stale_skips_when_auto_optimize_disabled(
+    hass: HomeAssistant,
+    mock_hub_entry: MockConfigEntry,
+    mock_runtime_data: HaeoRuntimeData,
+) -> None:
+    """signal_optimization_stale does nothing when auto-optimize is disabled."""
+    switch = mock_runtime_data.auto_optimize_switch
+    assert switch is not None
+
+    # Set switch to off
+    switch.is_on = False
+
+    coordinator = HaeoDataUpdateCoordinator(hass, mock_hub_entry)
+
+    # Set initial state - _optimization_in_progress False, no pending
+    coordinator._optimization_in_progress = False
+    coordinator._pending_refresh = False
+
+    # Call signal_optimization_stale - should return early due to auto_optimize_enabled=False
+    coordinator.signal_optimization_stale()
+
+    # State should remain unchanged (no pending refresh set, no timers scheduled)
+    assert coordinator._pending_refresh is False
+    assert coordinator._debounce_timer is None
+
+
+def test_apply_auto_optimize_state_pauses_horizon_manager(
+    hass: HomeAssistant,
+    mock_hub_entry: MockConfigEntry,
+    mock_runtime_data: HaeoRuntimeData,
+) -> None:
+    """_apply_auto_optimize_state pauses horizon manager when disabled."""
+    coordinator = HaeoDataUpdateCoordinator(hass, mock_hub_entry)
+
+    # Apply disabled state
+    coordinator._apply_auto_optimize_state(is_enabled=False)
+
+    # Horizon manager pause should have been called
+    _get_mock_horizon(mock_runtime_data).pause.assert_called_once()
+
+
+def test_apply_auto_optimize_state_resumes_horizon_manager(
+    hass: HomeAssistant,
+    mock_hub_entry: MockConfigEntry,
+    mock_runtime_data: HaeoRuntimeData,
+) -> None:
+    """_apply_auto_optimize_state resumes horizon manager when enabled."""
+    coordinator = HaeoDataUpdateCoordinator(hass, mock_hub_entry)
+
+    # Apply enabled state
+    coordinator._apply_auto_optimize_state(is_enabled=True)
+
+    # Horizon manager resume should have been called
+    _get_mock_horizon(mock_runtime_data).resume.assert_called_once()
+
+
+def test_apply_auto_optimize_state_no_op_without_runtime_data(
+    hass: HomeAssistant,
+    mock_hub_entry: MockConfigEntry,
+) -> None:
+    """_apply_auto_optimize_state does nothing when runtime_data is None."""
+    # Don't set runtime_data
+    mock_hub_entry.runtime_data = None
+    coordinator = HaeoDataUpdateCoordinator(hass, mock_hub_entry)
+
+    # Should not raise - just return early
+    coordinator._apply_auto_optimize_state(is_enabled=True)
+    coordinator._apply_auto_optimize_state(is_enabled=False)
+
+
+def test_handle_auto_optimize_switch_change_on_enables(
+    hass: HomeAssistant,
+    mock_hub_entry: MockConfigEntry,
+    mock_runtime_data: HaeoRuntimeData,
+) -> None:
+    """_handle_auto_optimize_switch_change resumes horizon and triggers optimization when turned on."""
+    coordinator = HaeoDataUpdateCoordinator(hass, mock_hub_entry)
+
+    # Create mock event for switch turning ON
+    new_state = MagicMock(spec=State)
+    new_state.state = STATE_ON
+    event_data: EventStateChangedData = {
+        "entity_id": "switch.haeo_auto_optimize",
+        "old_state": None,
+        "new_state": new_state,
+    }
+    event = MagicMock()
+    event.data = event_data
+
+    # Patch async_create_task to capture the coroutine and prevent unawaited warning
+    created_tasks: list[Any] = []
+
+    def capture_task(coro: Any) -> None:
+        # Close the coroutine to avoid unawaited warning
+        coro.close()
+        created_tasks.append(coro)
+
+    with patch.object(hass, "async_create_task", side_effect=capture_task):
+        coordinator._handle_auto_optimize_switch_change(event)
+
+    # Should resume horizon manager
+    _get_mock_horizon(mock_runtime_data).resume.assert_called()
+    # Should have created a task for optimization
+    assert len(created_tasks) == 1
+
+
+def test_handle_auto_optimize_switch_change_off_pauses(
+    hass: HomeAssistant,
+    mock_hub_entry: MockConfigEntry,
+    mock_runtime_data: HaeoRuntimeData,
+) -> None:
+    """_handle_auto_optimize_switch_change pauses horizon when turned off."""
+    coordinator = HaeoDataUpdateCoordinator(hass, mock_hub_entry)
+
+    # Create mock event for switch turning OFF
+    new_state = MagicMock(spec=State)
+    new_state.state = STATE_OFF
+    event_data: EventStateChangedData = {
+        "entity_id": "switch.haeo_auto_optimize",
+        "old_state": None,
+        "new_state": new_state,
+    }
+    event = MagicMock()
+    event.data = event_data
+
+    coordinator._handle_auto_optimize_switch_change(event)
+
+    # Should pause horizon manager
+    _get_mock_horizon(mock_runtime_data).pause.assert_called()
+
+
+def test_handle_auto_optimize_switch_change_none_state_returns_early(
+    hass: HomeAssistant,
+    mock_hub_entry: MockConfigEntry,
+    mock_runtime_data: HaeoRuntimeData,
+) -> None:
+    """_handle_auto_optimize_switch_change returns early when new_state is None."""
+    coordinator = HaeoDataUpdateCoordinator(hass, mock_hub_entry)
+
+    # Create mock event with None new_state
+    event_data: EventStateChangedData = {
+        "entity_id": "switch.haeo_auto_optimize",
+        "old_state": None,
+        "new_state": None,
+    }
+    event = MagicMock()
+    event.data = event_data
+
+    # Reset mock to track new calls
+    _get_mock_horizon(mock_runtime_data).reset_mock()
+
+    coordinator._handle_auto_optimize_switch_change(event)
+
+    # Should NOT have called pause or resume
+    _get_mock_horizon(mock_runtime_data).pause.assert_not_called()
+    _get_mock_horizon(mock_runtime_data).resume.assert_not_called()
+
+
+@pytest.mark.usefixtures("mock_battery_subentry", "mock_grid_subentry", "mock_runtime_data")
+async def test_async_run_optimization_runs_when_inputs_aligned(
+    hass: HomeAssistant,
+    mock_hub_entry: MockConfigEntry,
+) -> None:
+    """async_run_optimization runs optimization when inputs are aligned."""
+    coordinator = HaeoDataUpdateCoordinator(hass, mock_hub_entry)
+
+    # Mock _are_inputs_aligned to return True
+    with (
+        patch.object(coordinator, "_are_inputs_aligned", return_value=True),
+        patch.object(coordinator, "async_refresh", new_callable=AsyncMock) as refresh_mock,
+    ):
+        await coordinator.async_run_optimization()
+
+    refresh_mock.assert_called_once()
+
+
+@pytest.mark.usefixtures("mock_battery_subentry", "mock_grid_subentry", "mock_runtime_data")
+async def test_async_run_optimization_skips_when_inputs_not_aligned(
+    hass: HomeAssistant,
+    mock_hub_entry: MockConfigEntry,
+) -> None:
+    """async_run_optimization skips when inputs are not aligned."""
+    coordinator = HaeoDataUpdateCoordinator(hass, mock_hub_entry)
+
+    # Mock _are_inputs_aligned to return False
+    with (
+        patch.object(coordinator, "_are_inputs_aligned", return_value=False),
+        patch.object(coordinator, "async_refresh", new_callable=AsyncMock) as refresh_mock,
+    ):
+        await coordinator.async_run_optimization()
+
+    # async_refresh should not be called
+    refresh_mock.assert_not_called()
