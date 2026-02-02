@@ -1,0 +1,725 @@
+{
+  "config": {
+    "flow_title": "HAEO Einrichtung",
+    "step": {
+      "user": {
+        "title": "HAEO Einrichtung",
+        "description": "Konfiguriere dein System und wähle einen Planungshorizont, der zur Verfügbarkeit deiner Prognosedaten passt.",
+        "data": {
+          "advanced_mode": "Erweiterter Modus",
+          "horizon_preset": "Planungshorizont",
+          "name": "Systemname"
+        },
+        "data_description": {
+          "advanced_mode": "Aktiviert zusätzliche Elementtypen für komplexe Energiesysteme."
+        },
+        "sections": {
+          "advanced": {
+            "data": {
+              "advanced_mode": "Erweiterter Modus"
+            },
+            "name": "Erweiterte Einstellungen"
+          },
+          "basic": {
+            "data": {
+              "horizon_preset": "Planungshorizont",
+              "name": "Systemname"
+            },
+            "name": "Grundeinstellungen"
+          }
+        }
+      },
+      "custom_tiers": {
+        "title": "Benutzerdefinierte Intervalle",
+        "description": "Konfiguriere die Zeitstufen. Nahe Intervalle sind feingranularer für präzise Steuerung, während langfristige Intervalle die Komplexität reduzieren.",
+        "data": {
+          "tier_1_count": "Stufe 1 Anzahl (feingranular)",
+          "tier_1_duration": "Stufe 1 Dauer (Minuten)",
+          "tier_2_count": "Stufe 2 Anzahl (kurzfristig)",
+          "tier_2_duration": "Stufe 2 Dauer (Minuten)",
+          "tier_3_count": "Stufe 3 Anzahl (mittelfristig)",
+          "tier_3_duration": "Stufe 3 Dauer (Minuten)",
+          "tier_4_count": "Stufe 4 Anzahl (langfristig)",
+          "tier_4_duration": "Stufe 4 Dauer (Minuten)"
+        }
+      }
+    },
+    "error": {
+      "name_exists": "Ein System mit diesem Namen existiert bereits"
+    },
+    "abort": {
+      "already_configured": "HAEO ist bereits konfiguriert"
+    }
+  },
+  "options": {
+    "step": {
+      "custom_tiers": {
+        "title": "Benutzerdefinierte Intervalle",
+        "description": "Konfiguriere die Zeitstufen. Nahe Intervalle sind feingranularer, während fernere die Komplexität reduzieren.",
+        "data": {
+          "tier_1_count": "Stufe 1 Anzahl (feingranular)",
+          "tier_1_duration": "Stufe 1 Dauer (Minuten)",
+          "tier_2_count": "Stufe 2 Anzahl (kurzfristig)",
+          "tier_2_duration": "Stufe 2 Dauer (Minuten)",
+          "tier_3_count": "Stufe 3 Anzahl (mittelfristig)",
+          "tier_3_duration": "Stufe 3 Dauer (Minuten)",
+          "tier_4_count": "Stufe 4 Anzahl (langfristig)",
+          "tier_4_duration": "Stufe 4 Dauer (Minuten)"
+        }
+      },
+      "init": {
+        "title": "HAEO Einstellungen",
+        "description": "Konfiguriere die Optimierungseinstellungen. Wähle einen Planungshorizont, der zu deinen Prognosedaten passt.",
+        "data": {
+          "advanced_mode": "Erweiterter Modus",
+          "debounce_seconds": "Entprell-Zeitfenster (Sekunden)",
+          "horizon_preset": "Planungshorizont",
+          "record_forecasts": "Prognosedaten aufzeichnen"
+        },
+        "data_description": {
+          "advanced_mode": "Aktiviert zusätzliche Elementtypen für komplexe Energiesysteme.",
+          "record_forecasts": "Wenn aktiviert, werden Prognose-Attribute in der Datenbank gespeichert. Dies erhöht die Datenbankgröße erheblich, erlaubt aber das Debuggen historischer Prognosen. Standardmäßig deaktiviert."
+        },
+        "sections": {
+          "advanced": {
+            "data": {
+              "advanced_mode": "Erweiterter Modus",
+              "debounce_seconds": "Entprell-Zeitfenster (Sekunden)",
+              "record_forecasts": "Prognosedaten aufzeichnen"
+            },
+            "name": "Erweiterte Einstellungen"
+          },
+          "basic": {
+            "data": {
+              "horizon_preset": "Planungshorizont"
+            },
+            "name": "Grundeinstellungen"
+          }
+        }
+      }
+    },
+    "error": {
+      "cannot_connect_to_self": "Ein Gerät kann nicht mit sich selbst verbunden werden",
+      "invalid_name": "Ungültiger Gerätename",
+      "max_power_must_be_positive_for_bidirectional": "Die maximale Leistung muss bei bidirektionalen Verbindungen positiv sein",
+      "min_power_negative_not_allowed_unidirectional": "Die minimale Leistung kann bei unidirektionalen Verbindungen nicht negativ sein",
+      "min_power_too_high": "Die minimale Leistung muss kleiner oder gleich der maximalen Leistung sein",
+      "name_exists": "Ein Gerät mit diesem Namen existiert bereits"
+    },
+    "abort": {
+      "no_participants": "Aktuell sind keine Geräte mit diesem System verbunden",
+      "reload_failed": "Neu laden der Integration nach Konfigurationsänderung fehlgeschlagen. Bitte prüfe die Konfiguration."
+    }
+  },
+  "config_subentries": {
+    "battery": {
+      "flow_title": "Batterie",
+      "entry_type": "Batterie",
+      "initiate_flow": {
+        "user": "Batterie",
+        "reconfigure": "Batterie"
+      },
+      "step": {
+        "user": {
+          "title": "Batterie-Konfiguration",
+          "description": "Konfiguriere die Batterieparameter für die Energieoptimierung",
+          "data": {
+            "capacity": "Kapazität",
+            "configure_partitions": "Batterie-Partitionen konfigurieren",
+            "connection": "Verbindung",
+            "discharge_cost": "Entladekosten",
+            "early_charge_incentive": "Anreiz für frühes Laden",
+            "efficiency": "Gesamtwirkungsgrad (Round-trip)",
+            "initial_charge_percentage": "Ladezustand (SoC)",
+            "max_charge_percentage": "Max. Ladestand",
+            "max_charge_power": "Max. Ladeleistung",
+            "max_discharge_power": "Max. Entladeleistung",
+            "min_charge_percentage": "Min. Ladestand",
+            "name": "Batteriename"
+          },
+          "sections": {
+            "advanced": {
+              "data": {
+                "configure_partitions": "Batterie-Partitionen konfigurieren",
+                "discharge_cost": "Entladekosten",
+                "early_charge_incentive": "Anreiz für frühes Laden",
+                "efficiency": "Gesamtwirkungsgrad"
+              },
+              "name": "Erweiterte Einstellungen"
+            },
+            "basic": {
+              "data": {
+                "capacity": "Kapazität",
+                "connection": "Verbindung",
+                "initial_charge_percentage": "Ladezustand",
+                "name": "Batteriename"
+              },
+              "name": "Grundeinstellungen"
+            },
+            "limits": {
+              "data": {
+                "max_charge_percentage": "Max. Ladestand",
+                "max_charge_power": "Max. Ladeleistung",
+                "max_discharge_power": "Max. Entladeleistung",
+                "min_charge_percentage": "Min. Ladestand"
+              },
+              "name": "Grenzwerte"
+            }
+          }
+        },
+        "partition_values": {
+          "title": "Werte der Batterie-Partition",
+          "description": "Gib die Werte für die Partitions-Eingabequellen ein",
+          "data": {
+            "cost": "Kosten",
+            "percentage": "Prozent"
+          }
+        },
+        "partitions": {
+          "title": "Batterie-Partitionen",
+          "description": "Wähle Entitäten für Unterladungs- und Überladungsbereiche aus",
+          "data": {
+            "cost": "Kosten",
+            "percentage": "Prozent"
+          },
+          "sections": {
+            "overcharge": {
+              "data": {
+                "cost": "Überladungskosten",
+                "percentage": "Überladung Prozentsatz"
+              },
+              "name": "Überladungs-Einstellungen"
+            },
+            "undercharge": {
+              "data": {
+                "cost": "Unterladungskosten",
+                "percentage": "Unterladung Prozentsatz"
+              },
+              "name": "Unterladungs-Einstellungen"
+            }
+          }
+        }
+      },
+      "error": {
+        "missing_name": "Name ist erforderlich",
+        "name_exists": "Ein Gerät mit diesem Namen existiert bereits"
+      },
+      "abort": {
+        "reconfigure_successful": "Konfiguration erfolgreich aktualisiert"
+      }
+    },
+    "battery_section": {
+      "flow_title": "Batterie-Sektion",
+      "entry_type": "Batterie-Sektion",
+      "initiate_flow": {
+        "user": "Batterie-Sektion",
+        "reconfigure": "Batterie-Sektion"
+      },
+      "step": {
+        "user": {
+          "title": "Konfiguration der Batterie-Sektion",
+          "description": "Konfiguriere eine einzelne Batterie-Sektion mit expliziter Kapazität und Anfangsladung. Verbinde sie über Verbindungselemente mit anderen Elementen.",
+          "data": {
+            "capacity": "Kapazität",
+            "initial_charge": "Anfangsladung",
+            "name": "Name der Batterie-Sektion"
+          },
+          "sections": {
+            "basic": {
+              "data": {
+                "name": "Name der Batterie-Sektion"
+              },
+              "name": "Grundeinstellungen"
+            },
+            "inputs": {
+              "data": {
+                "capacity": "Kapazität",
+                "initial_charge": "Anfangsladung"
+              },
+              "name": "Eingaben"
+            }
+          }
+        }
+      },
+      "error": {
+        "missing_name": "Name ist erforderlich",
+        "name_exists": "Ein Gerät mit diesem Namen existiert bereits"
+      },
+      "abort": {
+        "reconfigure_successful": "Konfiguration erfolgreich aktualisiert"
+      }
+    },
+    "connection": {
+      "flow_title": "Verbindung",
+      "entry_type": "Verbindung",
+      "initiate_flow": {
+        "user": "Verbindung",
+        "reconfigure": "Verbindung"
+      },
+      "step": {
+        "user": {
+          "title": "Verbindungs-Konfiguration",
+          "description": "Konfiguriere die Verbindungsparameter zwischen Geräten",
+          "data": {
+            "efficiency_source_target": "Wirkungsgrad Quelle zu Ziel",
+            "efficiency_target_source": "Wirkungsgrad Ziel zu Quelle",
+            "max_power_source_target": "Max. Leistung Quelle zu Ziel",
+            "max_power_target_source": "Max. Leistung Ziel zu Quelle",
+            "name": "Verbindungsname",
+            "price_source_target": "Preis Quelle zu Ziel",
+            "price_target_source": "Preis Ziel zu Quelle",
+            "source": "Quellgerät",
+            "target": "Zielgerät"
+          },
+          "sections": {
+            "advanced": {
+              "data": {
+                "efficiency_source_target": "Wirkungsgrad Quelle zu Ziel",
+                "efficiency_target_source": "Wirkungsgrad Ziel zu Quelle",
+                "price_source_target": "Preis Quelle zu Ziel",
+                "price_target_source": "Preis Ziel zu Quelle"
+              },
+              "name": "Erweiterte Einstellungen"
+            },
+            "basic": {
+              "data": {
+                "name": "Verbindungsname",
+                "source": "Quellgerät",
+                "target": "Zielgerät"
+              },
+              "name": "Grundeinstellungen"
+            },
+            "limits": {
+              "data": {
+                "max_power_source_target": "Max. Leistung Quelle zu Ziel",
+                "max_power_target_source": "Max. Leistung Ziel zu Quelle"
+              },
+              "name": "Grenzwerte"
+            }
+          }
+        }
+      },
+      "error": {
+        "cannot_connect_to_self": "Ein Gerät kann nicht mit sich selbst verbunden werden",
+        "max_power_must_be_positive_for_bidirectional": "Die maximale Leistung muss bei bidirektionalen Verbindungen positiv sein",
+        "min_power_negative_not_allowed_unidirectional": "Die minimale Leistung kann bei unidirektionalen Verbindungen nicht negativ sein",
+        "min_power_too_high": "Die minimale Leistung muss kleiner oder gleich der maximalen Leistung sein",
+        "missing_name": "Name ist erforderlich",
+        "name_exists": "Ein Gerät mit diesem Namen existiert bereits"
+      },
+      "abort": {
+        "reconfigure_successful": "Konfiguration erfolgreich aktualisiert"
+      }
+    },
+    "grid": {
+      "flow_title": "Stromnetz",
+      "entry_type": "Stromnetz",
+      "initiate_flow": {
+        "user": "Stromnetz",
+        "reconfigure": "Stromnetz"
+      },
+      "step": {
+        "user": {
+          "title": "Netz-Konfiguration",
+          "description": "Konfiguriere Netz-Import/Export-Parameter und Preise",
+          "data": {
+            "connection": "Verbindung",
+            "export_limit": "Export-Limit",
+            "export_price": "Einspeisevergütung (Export)",
+            "import_limit": "Import-Limit",
+            "import_price": "Strompreis (Import)",
+            "name": "Netz-Name"
+          },
+          "sections": {
+            "basic": {
+              "data": {
+                "connection": "Verbindung",
+                "name": "Netz-Name"
+              },
+              "name": "Grundeinstellungen"
+            },
+            "limits": {
+              "data": {
+                "export_limit": "Export-Limit",
+                "import_limit": "Import-Limit"
+              },
+              "name": "Grenzwerte"
+            },
+            "pricing": {
+              "data": {
+                "export_price": "Exportpreis",
+                "import_price": "Importpreis"
+              },
+              "name": "Preise"
+            }
+          }
+        }
+      },
+      "error": {
+        "missing_name": "Name ist erforderlich",
+        "name_exists": "Ein Gerät mit diesem Namen existiert bereits"
+      },
+      "abort": {
+        "reconfigure_successful": "Konfiguration erfolgreich aktualisiert"
+      }
+    },
+    "inverter": {
+      "flow_title": "Wechselrichter",
+      "entry_type": "Wechselrichter",
+      "initiate_flow": {
+        "user": "Wechselrichter",
+        "reconfigure": "Wechselrichter"
+      },
+      "step": {
+        "user": {
+          "title": "Wechselrichter-Konfiguration",
+          "description": "Konfiguriere einen bidirektionalen Wechselrichter mit DC-Bus für Batterie- und Solaranschlüsse",
+          "data": {
+            "connection": "AC-Verbindung",
+            "efficiency_ac_to_dc": "AC zu DC Wirkungsgrad",
+            "efficiency_dc_to_ac": "DC zu AC Wirkungsgrad",
+            "max_power_ac_to_dc": "Max. AC zu DC Leistung",
+            "max_power_dc_to_ac": "Max. DC zu AC Leistung",
+            "name": "Wechselrichter-Name"
+          },
+          "sections": {
+            "advanced": {
+              "data": {
+                "efficiency_ac_to_dc": "AC zu DC Wirkungsgrad",
+                "efficiency_dc_to_ac": "DC zu AC Wirkungsgrad"
+              },
+              "name": "Erweiterte Einstellungen"
+            },
+            "basic": {
+              "data": {
+                "connection": "AC-Verbindung",
+                "name": "Wechselrichter-Name"
+              },
+              "name": "Grundeinstellungen"
+            },
+            "limits": {
+              "data": {
+                "max_power_ac_to_dc": "Max. AC zu DC Leistung",
+                "max_power_dc_to_ac": "Max. DC zu AC Leistung"
+              },
+              "name": "Grenzwerte"
+            }
+          }
+        }
+      },
+      "error": {
+        "missing_name": "Name ist erforderlich",
+        "name_exists": "Ein Gerät mit diesem Namen existiert bereits"
+      },
+      "abort": {
+        "reconfigure_successful": "Konfiguration erfolgreich aktualisiert"
+      }
+    },
+    "load": {
+      "flow_title": "Verbraucher (Load)",
+      "entry_type": "Verbraucher",
+      "initiate_flow": {
+        "user": "Verbraucher",
+        "reconfigure": "Verbraucher"
+      },
+      "step": {
+        "user": {
+          "title": "Verbraucher-Konfiguration",
+          "description": "Konfiguriere einen Verbraucher mit Prognose oder konstanter Leistung.\n\n[HAFO]({hafo_url}) kann verwendet werden, um Prognosesensoren zu erstellen.",
+          "data": {
+            "connection": "Verbindung",
+            "forecast": "Prognose",
+            "name": "Verbrauchername"
+          },
+          "sections": {
+            "basic": {
+              "data": {
+                "connection": "Verbindung",
+                "name": "Verbrauchername"
+              },
+              "name": "Grundeinstellungen"
+            },
+            "inputs": {
+              "data": {
+                "forecast": "Prognose"
+              },
+              "name": "Eingaben"
+            }
+          }
+        }
+      },
+      "error": {
+        "missing_name": "Name ist erforderlich",
+        "name_exists": "Ein Gerät mit diesem Namen existiert bereits"
+      },
+      "abort": {
+        "reconfigure_successful": "Konfiguration erfolgreich aktualisiert"
+      }
+    },
+    "network": {
+      "flow_title": "HAEO",
+      "entry_type": "HAEO",
+      "initiate_flow": {
+        "user": "HAEO",
+        "reconfigure": "HAEO"
+      },
+      "step": {},
+      "abort": {
+        "reconfigure_successful": "Konfiguration erfolgreich aktualisiert"
+      }
+    },
+    "node": {
+      "flow_title": "Knotenpunkt (Node)",
+      "entry_type": "Knotenpunkt",
+      "initiate_flow": {
+        "user": "Knotenpunkt",
+        "reconfigure": "Knotenpunkt"
+      },
+      "step": {
+        "user": {
+          "title": "Knotenpunkt-Konfiguration",
+          "description": "Füge einen Knoten für Leistungsbilanzberechnungen hinzu oder um unbegrenzte Energie zu beziehen/abzugeben.",
+          "data": {
+            "is_sink": "Kann unbegrenzt Energie verbrauchen (Senke)",
+            "is_source": "Kann unbegrenzt Energie erzeugen (Quelle)",
+            "name": "Knotenname"
+          },
+          "sections": {
+            "advanced": {
+              "data": {
+                "is_sink": "Senke (unbegrenzt Verbrauch)",
+                "is_source": "Quelle (unbegrenzt Erzeugung)"
+              },
+              "name": "Erweiterte Einstellungen"
+            },
+            "basic": {
+              "data": {
+                "name": "Knotenname"
+              },
+              "name": "Grundeinstellungen"
+            }
+          }
+        }
+      },
+      "error": {
+        "missing_name": "Name ist erforderlich",
+        "name_exists": "Ein Gerät mit diesem Namen existiert bereits"
+      },
+      "abort": {
+        "reconfigure_successful": "Konfiguration erfolgreich aktualisiert"
+      }
+    },
+    "solar": {
+      "flow_title": "Solar",
+      "entry_type": "Solar",
+      "initiate_flow": {
+        "user": "Solar",
+        "reconfigure": "Solar"
+      },
+      "step": {
+        "user": {
+          "title": "Solar-Konfiguration",
+          "description": "Konfiguriere Solar-Prognosen und Parameter",
+          "data": {
+            "connection": "Verbindung",
+            "curtailment": "Abregelung zulassen (Curtailment)",
+            "forecast": "Prognose",
+            "name": "Solarname",
+            "price_production": "Erzeugungspreis"
+          },
+          "sections": {
+            "advanced": {
+              "data": {
+                "curtailment": "Abregelung zulassen",
+                "price_production": "Erzeugungspreis"
+              },
+              "name": "Erweiterte Einstellungen"
+            },
+            "basic": {
+              "data": {
+                "connection": "Verbindung",
+                "forecast": "Prognose",
+                "name": "Solarname"
+              },
+              "name": "Grundeinstellungen"
+            }
+          }
+        }
+      },
+      "error": {
+        "missing_name": "Name ist erforderlich",
+        "name_exists": "Ein Gerät mit diesem Namen existiert bereits"
+      },
+      "abort": {
+        "reconfigure_successful": "Konfiguration erfolgreich aktualisiert"
+      }
+    }
+  },
+  "common": {
+    "default_hub_name": "Zuhause",
+    "network_subentry_name": "System",
+    "switchboard_node_name": "Schalttafel"
+  },
+  "device": {
+    "battery": { "name": "{name}" },
+    "battery_section": { "name": "{name}" },
+    "connection": { "name": "{name}" },
+    "grid": { "name": "{name}" },
+    "inverter": { "name": "{name}" },
+    "load": { "name": "{name}" },
+    "network": { "name": "Optimierer" },
+    "node": { "name": "{name}" },
+    "solar": { "name": "{name}" }
+  },
+  "entity": {
+    "number": {
+      "battery_capacity": { "name": "Kapazität" },
+      "battery_cost": { "name": "Kosten" },
+      "battery_discharge_cost": { "name": "Entladekosten" },
+      "battery_early_charge_incentive": { "name": "Anreiz frühes Laden" },
+      "battery_efficiency": { "name": "Wirkungsgrad" },
+      "battery_initial_charge_percentage": { "name": "Anfangsladung" },
+      "battery_max_charge_percentage": { "name": "Max. Ladung" },
+      "battery_max_charge_power": { "name": "Max. Ladeleistung" },
+      "battery_max_discharge_power": { "name": "Max. Entladeleistung" },
+      "battery_min_charge_percentage": { "name": "Min. Ladung" },
+      "battery_percentage": { "name": "Prozent" },
+      "connection_efficiency_source_target": { "name": "Wirkungsgrad Quelle zu Ziel" },
+      "connection_efficiency_target_source": { "name": "Wirkungsgrad Ziel zu Quelle" },
+      "connection_max_power_source_target": { "name": "Max. Leistung Quelle zu Ziel" },
+      "connection_max_power_target_source": { "name": "Max. Leistung Ziel zu Quelle" },
+      "connection_price_source_target": { "name": "Preis Quelle zu Ziel" },
+      "connection_price_target_source": { "name": "Preis Ziel zu Quelle" },
+      "grid_export_limit": { "name": "Export-Limit" },
+      "grid_export_price": { "name": "Export-Preis" },
+      "grid_import_limit": { "name": "Import-Limit" },
+      "grid_import_price": { "name": "Import-Preis" },
+      "inverter_efficiency_ac_to_dc": { "name": "AC zu DC Wirkungsgrad" },
+      "inverter_efficiency_dc_to_ac": { "name": "DC zu AC Wirkungsgrad" },
+      "inverter_max_power_ac_to_dc": { "name": "Max. AC zu DC Leistung" },
+      "inverter_max_power_dc_to_ac": { "name": "Max. DC zu AC Leistung" },
+      "load_forecast": { "name": "Prognose" },
+      "solar_forecast": { "name": "Prognose" },
+      "solar_price_production": { "name": "Erzeugungspreis" }
+    },
+    "sensor": {
+      "battery_energy_in_flow": { "name": "Energiezufluss Schattenpreis" },
+      "battery_energy_out_flow": { "name": "Energieabfluss Schattenpreis" },
+      "battery_energy_stored": { "name": "Gespeicherte Energie" },
+      "battery_power_active": { "name": "Wirkleistung" },
+      "battery_power_balance": { "name": "Leistungsbilanz Schattenpreis" },
+      "battery_power_charge": { "name": "Ladeleistung" },
+      "battery_power_discharge": { "name": "Entladeleistung" },
+      "battery_section_energy_in_flow": { "name": "Energiezufluss Schattenpreis" },
+      "battery_section_energy_out_flow": { "name": "Energieabfluss Schattenpreis" },
+      "battery_section_energy_stored": { "name": "Gespeicherte Energie" },
+      "battery_section_power_active": { "name": "Wirkleistung" },
+      "battery_section_power_balance": { "name": "Leistungsbilanz Schattenpreis" },
+      "battery_section_power_charge": { "name": "Ladeleistung" },
+      "battery_section_power_discharge": { "name": "Entladeleistung" },
+      "battery_section_soc_max": { "name": "SoC Max Schattenpreis" },
+      "battery_section_soc_min": { "name": "SoC Min Schattenpreis" },
+      "battery_soc_max": { "name": "SoC Max Schattenpreis" },
+      "battery_soc_min": { "name": "SoC Min Schattenpreis" },
+      "battery_state_of_charge": { "name": "Ladezustand" },
+      "connection_power_active": { "name": "{source} zu {target} Wirkleistung" },
+      "connection_power_source_target": { "name": "{source} zu {target} Leistung" },
+      "connection_power_target_source": { "name": "{target} zu {source} Leistung" },
+      "connection_shadow_power_max_source_target": { "name": "Max. {source} zu {target} Leistung Schattenpreis" },
+      "connection_shadow_power_max_target_source": { "name": "Max. {target} zu {source} Leistung Schattenpreis" },
+      "connection_time_slice": { "name": "Zeitschlitz Schattenpreis" },
+      "grid_cost_import": { "name": "Importkosten" },
+      "grid_cost_net": { "name": "Nettokosten" },
+      "grid_power_active": { "name": "Wirkleistung" },
+      "grid_power_export": { "name": "Exportleistung" },
+      "grid_power_import": { "name": "Importleistung" },
+      "grid_power_max_export_price": { "name": "Max. Exportleistung Schattenpreis" },
+      "grid_power_max_import_price": { "name": "Max. Importleistung Schattenpreis" },
+      "grid_revenue_export": { "name": "Exporterlös" },
+      "horizon": { "name": "Prognosehorizont" },
+      "inverter_dc_bus_power_balance": { "name": "DC-Bus Leistungsbilanz Schattenpreis" },
+      "inverter_max_power_ac_to_dc_price": { "name": "Max. AC zu DC Leistung Schattenpreis" },
+      "inverter_max_power_dc_to_ac_price": { "name": "Max. DC zu AC Leistung Schattenpreis" },
+      "inverter_power_ac_to_dc": { "name": "AC zu DC Leistung" },
+      "inverter_power_active": { "name": "Wirkleistung" },
+      "inverter_power_dc_to_ac": { "name": "DC zu AC Leistung" },
+      "load_forecast_limit_price": { "name": "Prognoselimit Schattenpreis" },
+      "load_power": { "name": "Leistung" },
+      "network_optimization_cost": { "name": "Kosten" },
+      "network_optimization_duration": { "name": "Dauer" },
+      "network_optimization_status": { "name": "Status" },
+      "node_power_balance": { "name": "Leistungsbilanz Schattenpreis" },
+      "solar_forecast_limit": { "name": "Prognoselimit Schattenpreis" },
+      "solar_power": { "name": "Leistung" }
+    },
+    "switch": {
+      "network_auto_optimize": { "name": "Auto-Optimierung" },
+      "node_is_sink": { "name": "Ist Senke" },
+      "node_is_source": { "name": "Ist Quelle" },
+      "solar_curtailment": { "name": "Abregelung" }
+    }
+  },
+  "exceptions": {
+    "config_entry_not_found": { "message": "Konfigurationseintrag {entry_id} nicht gefunden" },
+    "config_entry_not_loaded": { "message": "Konfigurationseintrag {entry_id} ist nicht geladen (Status: {state})" },
+    "config_entry_wrong_domain": { "message": "Eintrag {entry_id} ist kein HAEO-Hub (Domain: {domain})" },
+    "input_entities_not_ready": {
+      "message": "Eingabe-Entitäten nicht bereit nach {timeout} Sekunden: {not_ready}."
+    },
+    "missing_sensors": {
+      "message": "HAEO kann keine Daten für {unavailable_sensors} laden. Prüfe, ob die Sensoren existieren."
+    },
+    "no_history_at_time": {
+      "message": "Keine Historie verfügbar zum Zeitpunkt {time} für: {missing}."
+    },
+    "self_referential_field_missing": {
+      "message": "Konfigurationsfehler im Feld {field}. Bitte erstelle das Element neu."
+    },
+    "setup_failed_permanent": {
+      "message": "Einrichtung aufgrund eines Konfigurationsfehlers fehlgeschlagen: {error}."
+    },
+    "setup_failed_transient": { "message": "Einrichtung fehlgeschlagen: {error}. Home Assistant versucht es automatisch erneut." }
+  },
+  "issues": {
+    "disconnected_network": {
+      "title": "System hat getrennte Komponenten",
+      "description": "Das System hat {num_components} getrennte Gruppen, die keine Energie austauschen können.\n\nZur Behebung:\n1. Prüfe die Gruppen: {component_summary}\n2. Füge Verbindungen in der Konfiguration hinzu, bis alle Elemente verbunden sind."
+    },
+    "invalid_config": {
+      "title": "Ungültige Konfiguration für {element_name}",
+      "description": "Das Element {element_name} hat eine ungültige Konfiguration: {config_problem}."
+    },
+    "missing_sensor": {
+      "title": "Fehlende Sensordaten für {element_name}",
+      "description": "HAEO kann keine Daten für {element_name} finden. Die Entität {sensor_entity_id} existiert eventuell nicht."
+    },
+    "optimization_failure": {
+      "title": "Optimierung fehlgeschlagen",
+      "description": "Fehler: {error_message}\n\nPrüfe die Protokolle und die Verfügbarkeit deiner Sensoren."
+    }
+  },
+  "selector": {
+    "horizon_preset": {
+      "options": { "2_days": "2 Tage", "3_days": "3 Tage", "5_days": "5 Tage", "7_days": "7 Tage", "custom": "Benutzerdefiniert" }
+    },
+    "input_source": { "choices": { "constant": "Konstant", "entity": "Entität", "none": "Keine" } }
+  },
+  "services": {
+    "optimize": {
+      "description": "Führt eine Optimierung für das angegebene System aus",
+      "fields": { "config_entry": { "description": "Das HAEO-System für die Optimierung", "name": "System" } },
+      "name": "Optimieren"
+    },
+    "save_diagnostics": {
+      "description": "Speichert eine Diagnosedatei im Konfigurationsverzeichnis",
+      "fields": {
+        "config_entry": { "description": "Das HAEO-System für die Diagnose", "name": "System" },
+        "time": {
+          "description": "Generiert Diagnose basierend auf historischen Zuständen. Aktueller Zustand, wenn leer.",
+          "name": "Zeitpunkt"
+        }
+      },
+      "name": "Diagnose speichern"
+    }
+  }
+}
